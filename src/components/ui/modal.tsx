@@ -17,8 +17,8 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-line bg-panel p-5">
+        <Dialog.Overlay className="fixed inset-0 bg-black/65 backdrop-blur-sm" />
+        <Dialog.Content className="page-enter fixed left-1/2 top-1/2 z-50 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/12 bg-panel p-5 shadow-2xl">
           <div className="mb-4 flex items-center justify-between gap-3">
             <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
             <Dialog.Close asChild>

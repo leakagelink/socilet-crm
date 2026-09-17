@@ -84,14 +84,17 @@ export function ModuleCrud({
       {q.isLoading ? <Card>Loading…</Card> : null}
       {q.isError ? <Card className="text-red-300">Could not load records.</Card> : null}
       {q.data && q.data.length === 0 ? (
-        <Card className="grid place-items-center py-12 text-center text-sm text-paper/50">
-          No rows yet. Create the first {module.title.toLowerCase()} record.
+        <Card className="grid place-items-center py-16 text-center">
+          <div className="font-display text-xl">Empty ledger</div>
+          <p className="mt-1 max-w-sm text-sm text-paper/50">
+            No {module.title.toLowerCase()} yet. Create the first row — the table fills as you work.
+          </p>
         </Card>
       ) : null}
       {q.data && q.data.length > 0 ? (
-        <div className="overflow-x-auto rounded-2xl border border-white/8">
+        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-panel/50 shadow-[0_20px_50px_-32px_rgba(0,0,0,0.8)]">
           <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="bg-white/4">
+            <thead className="bg-white/[0.04]">
               <tr>
                 {module.fields.map((f) => (
                   <th key={f.name} className="px-3 py-3 text-[11px] uppercase tracking-wide font-medium text-paper/50">

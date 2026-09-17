@@ -49,11 +49,14 @@ export function TasksPage() {
         {COLS.map((col) => {
           const items = (q.data ?? []).filter((r) => String(r.data.status) === col);
           return (
-            <div key={col} className="kanban-col rounded-2xl border border-line bg-panel/40 p-3">
-              <div className="mb-2 text-xs uppercase tracking-wide text-gold/80">{col.replace("_", " ")}</div>
+            <div key={col} className="kanban-col rounded-2xl border border-white/10 bg-panel/40 p-3">
+              <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-wide text-gold/80">
+                <span>{col.replace("_", " ")}</span>
+                <span className="rounded-full bg-white/8 px-2 py-0.5 text-paper/50">{items.length}</span>
+              </div>
               <div className="grid gap-2">
                 {items.map((row) => (
-                  <Card key={row.id} className="p-3">
+                  <Card key={row.id} className="shine p-3">
                     <div className="font-medium">{String(row.data.title)}</div>
                     <div className="text-xs text-paper/50">
                       {String(row.data.priority)} · {String(row.data.assignee)}

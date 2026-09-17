@@ -8,7 +8,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-gold text-ink hover:brightness-110",
+        default: "bg-gradient-to-b from-gold to-[#d4ae55] text-ink shadow-[0_8px_20px_rgba(232,195,106,0.28)] hover:brightness-110",
         outline: "border border-line bg-transparent text-paper hover:bg-panel",
         ghost: "hover:bg-panel text-paper",
         danger: "bg-red-700 text-white hover:bg-red-600",

@@ -28,6 +28,7 @@ async function fromModule(
   href: string,
   pred: (row: RecordRow) => AlertItem | null,
 ) {
+  void href;
   const rows = await listRecords(module);
   return rows.map(pred).filter((x): x is AlertItem => Boolean(x));
 }
