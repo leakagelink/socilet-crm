@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { handleEmailRequest } from "./server/email-api.mjs";
 import { handleCrmRequest } from "./server/crm-api.mjs";
+import { handleAuthRequest } from "./server/auth-api.mjs";
 
 const dist = join(import.meta.dirname, "dist");
 const port = Number(process.env.PORT || 43721);
@@ -18,6 +19,10 @@ const mime = {
 
 createServer(async (req, res) => {
   const path = (req.url || "/").split("?")[0];
+  if (path.startsWith("/api/auth")) {
+    await handleAuthRequest(req, res, process.env);
+    return;
+  }
   if (path.startsWith("/api/email")) {
     await handleEmailRequest(req, res, process.env);
     return;
@@ -31,6 +36,9 @@ createServer(async (req, res) => {
   try {
     const body = readFileSync(file);
     res.setHeader("Content-Type", mime[extname(file)] || "application/octet-stream");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "same-origin");
     res.end(body);
   } catch {
     res.statusCode = 404;

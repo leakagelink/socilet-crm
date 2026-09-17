@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { json, originOk, readBody, setCors } from "./http-util.mjs";
+import { json } from "./http-util.mjs";
+import { corsAndOptions, guardOrigin, readJson } from "./security.mjs";
+import { requireApiUser } from "./auth-api.mjs";
 
 function storePaths() {
   const paths = [];
@@ -68,16 +70,8 @@ function query(req) {
 }
 
 export async function handleCrmRequest(req, res, env = process.env) {
-  setCors(req, res, env);
-  if (req.method === "OPTIONS") {
-    res.statusCode = 204;
-    res.end();
-    return true;
-  }
-  if (!originOk(req, env)) {
-    json(res, 403, { error: "Origin not allowed" });
-    return true;
-  }
+  if (corsAndOptions(req, res, env)) return true;
+  if (!guardOrigin(req, res, env)) return true;
 
   const path = pathname(req);
   const qs = query(req);
@@ -88,6 +82,8 @@ export async function handleCrmRequest(req, res, env = process.env) {
       return true;
     }
 
+    if (!(await requireApiUser(req, res, env))) return true;
+
     if (req.method === "GET" && path === "/api/crm/records") {
       const module = qs.get("module");
       const state = loadState();
@@ -97,7 +93,8 @@ export async function handleCrmRequest(req, res, env = process.env) {
     }
 
     if (req.method === "POST" && path === "/api/crm/records") {
-      const input = JSON.parse((await readBody(req)) || "{}");
+      const input = await readJson(req, res);
+      if (!input) return true;
       const state = loadState();
       const now = new Date().toISOString();
       const row = {
@@ -119,7 +116,8 @@ export async function handleCrmRequest(req, res, env = process.env) {
     }
 
     if (req.method === "POST" && path === "/api/crm/merge") {
-      const input = JSON.parse((await readBody(req)) || "{}");
+      const input = await readJson(req, res);
+      if (!input) return true;
       const state = loadState();
       const incoming = Array.isArray(input.records) ? input.records : [];
       const byId = new Map(state.records.map((r) => [r.id, r]));
@@ -148,7 +146,8 @@ export async function handleCrmRequest(req, res, env = process.env) {
 
     const one = path.match(/^\/api\/crm\/records\/([^/]+)$/);
     if (one && req.method === "PUT") {
-      const input = JSON.parse((await readBody(req)) || "{}");
+      const input = await readJson(req, res);
+      if (!input) return true;
       const state = loadState();
       const existing = state.records.find((r) => r.id === one[1]);
       if (!existing) {
@@ -174,7 +173,8 @@ export async function handleCrmRequest(req, res, env = process.env) {
       return true;
     }
     if (req.method === "PUT" && path === "/api/crm/settings/finance") {
-      const input = JSON.parse((await readBody(req)) || "{}");
+      const input = await readJson(req, res);
+      if (!input) return true;
       const state = loadState();
       state.settings.finance = {
         id: "finance",

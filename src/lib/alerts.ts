@@ -1,5 +1,5 @@
 import { insertRecord, listRecords, updateRecord, type RecordRow } from "@/lib/db";
-import { apiUrl } from "@/lib/apiBase";
+import { apiFetch } from "@/lib/apiBase";
 
 export type AlertItem = {
   source_id: string;
@@ -36,13 +36,13 @@ async function fromModule(
 
 async function fromEmail(): Promise<AlertItem[]> {
   try {
-    const boxesRes = await fetch(apiUrl("/api/email/mailboxes"));
+    const boxesRes = await apiFetch("/api/email/mailboxes");
     const type = boxesRes.headers.get("content-type") || "";
     if (!type.includes("json") || !boxesRes.ok) return [];
     const boxes = (await boxesRes.json()) as { data?: { id: string; label: string }[] };
     const out: AlertItem[] = [];
     for (const box of boxes.data ?? []) {
-      const inboxRes = await fetch(apiUrl(`/api/email/inbox?mailbox=${encodeURIComponent(box.id)}`));
+      const inboxRes = await apiFetch(`/api/email/inbox?mailbox=${encodeURIComponent(box.id)}`);
       if (!inboxRes.ok) continue;
       const inbox = (await inboxRes.json()) as {
         data?: { id: string; subject?: string; from?: string }[];

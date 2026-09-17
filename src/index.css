@@ -17,27 +17,44 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
-html, body {
+html,
+body {
   margin: 0;
-  min-height: 100%;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 body {
   font-family: var(--font-sans);
   color: var(--color-paper);
   background: #060914;
-  touch-action: pan-y;
 }
 
-/* Radix RemoveScroll freezes WebViews by setting pointer-events:none on body. */
+/* Libraries may lock body; never freeze the app surface. */
+html,
+body,
 body[data-scroll-locked],
 html body[data-scroll-locked] {
-  overflow: auto !important;
   pointer-events: auto !important;
-  padding-right: 0 !important;
 }
 
-body::before {
+#root {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+#root > * {
+  position: relative;
+  z-index: 1;
+}
+
+#root::before {
   content: "";
   pointer-events: none;
   position: fixed;
@@ -50,7 +67,7 @@ body::before {
     linear-gradient(180deg, #121a2c 0%, #060914 42%);
 }
 
-body::after {
+#root::after {
   content: "";
   pointer-events: none;
   position: fixed;
@@ -58,12 +75,6 @@ body::after {
   z-index: 0;
   opacity: 0.045;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-#root {
-  position: relative;
-  z-index: 1;
-  min-height: 100%;
 }
 
 h1, h2, .font-display { font-family: var(--font-display); }
@@ -117,8 +128,14 @@ input, textarea, select, button { font: inherit; }
 .stagger > *:nth-child(6) { animation-delay: 0.32s; }
 
 .glass {
-  background: color-mix(in srgb, var(--color-panel) 72%, transparent);
-  backdrop-filter: blur(18px) saturate(140%);
+  background: color-mix(in srgb, var(--color-panel) 88%, #060914);
+}
+
+@media (min-width: 1024px) {
+  .glass {
+    background: color-mix(in srgb, var(--color-panel) 72%, transparent);
+    backdrop-filter: blur(18px) saturate(140%);
+  }
 }
 
 .shine {

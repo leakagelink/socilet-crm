@@ -21,17 +21,24 @@ function sociletApi(env: Record<string, string>) {
   const run = (req: unknown, res: unknown, next: () => void) => {
     const url = String((req as { url?: string }).url || "");
     const route = url.split("?")[0];
+    if (route.startsWith("/api/auth")) {
+      const spec = pathToFileURL(path.join(import.meta.dirname, "server", "auth-api.mjs")).href;
+      void import(spec).then((m: { handleAuthRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
+        m.handleAuthRequest(req, res, { ...process.env, ...env } as Record<string, string>),
+      );
+      return;
+    }
     if (route.startsWith("/api/email")) {
       const spec = pathToFileURL(path.join(import.meta.dirname, "server", "email-api.mjs")).href;
       void import(spec).then((m: { handleEmailRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
-        m.handleEmailRequest(req, res, env),
+        m.handleEmailRequest(req, res, { ...process.env, ...env } as Record<string, string>),
       );
       return;
     }
     if (route.startsWith("/api/crm")) {
       const spec = pathToFileURL(path.join(import.meta.dirname, "server", "crm-api.mjs")).href;
       void import(spec).then((m: { handleCrmRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
-        m.handleCrmRequest(req, res, env),
+        m.handleCrmRequest(req, res, { ...process.env, ...env } as Record<string, string>),
       );
       return;
     }

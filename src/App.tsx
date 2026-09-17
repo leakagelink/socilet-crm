@@ -4,6 +4,7 @@ import { RequireAuth } from "@/components/RequireAuth";
 import { LoginPage, DeniedPage } from "@/pages/LoginPage";
 import { DashboardPage, BalanceTrackerPage, AnalyticsPage, AiAnalyzerPage } from "@/pages/SpecialPages";
 import { EmailsPage } from "@/pages/EmailsPage";
+import { AccountPage } from "@/pages/AccountPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { ModuleCrud } from "@/pages/ModuleCrud";
 import { MODULES } from "@/lib/modules";
@@ -15,7 +16,8 @@ function Crud({ id }: { id: string }) {
 }
 
 function LoginGate() {
-  const { session } = useAuth();
+  const { session, ready } = useAuth();
+  if (!ready) return <div className="grid min-h-full place-items-center text-sm text-paper/50">Loading…</div>;
   if (session?.role === "admin") return <Navigate to="/" replace />;
   if (session) return <Navigate to="/denied" replace />;
   return <LoginPage />;
@@ -34,6 +36,7 @@ export function App() {
           <Route path="/balance-tracker" element={<BalanceTrackerPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/emails" element={<EmailsPage />} />
+          <Route path="/account" element={<AccountPage />} />
           {MODULES.filter((m) => !["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails"].includes(m.id)).map((m) => (
             <Route key={m.id} path={m.path} element={<Crud id={m.id} />} />
           ))}

@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
-import { apiJson } from "@/lib/apiBase";
-import { hashPassword, nowIso, uid } from "@/lib/utils";
+import { apiJson, getToken } from "@/lib/apiBase";
+import { nowIso, uid } from "@/lib/utils";
 
 export type RoleName = "admin" | "user";
 
@@ -67,6 +67,7 @@ let cloud: "unknown" | "yes" | "no" = "unknown";
 let cloudChecked = 0;
 
 export async function cloudLive() {
+  if (!getToken()) return false;
   if (cloud === "yes") return true;
   if (cloud === "no" && Date.now() - cloudChecked < 20_000) return false;
   try {
@@ -79,22 +80,6 @@ export async function cloudLive() {
   return cloud === "yes";
 }
 
-const SEED = [
-  {
-    email: "admin@socilet.local",
-    password: "Admin@Socilet1!",
-    full_name: "Socilet Admin",
-    role: "admin" as const,
-  },
-  {
-    email: "user@socilet.local",
-    password: "UserPass1234!",
-    full_name: "Socilet User",
-    role: "user" as const,
-  },
-];
-
-/** One-time empty start. Change this string to wipe CRM data again after deploy. */
 const EMPTY_START = "empty-start-2026-09-17";
 
 async function wipeToEmptyOnce() {
@@ -106,26 +91,6 @@ async function wipeToEmptyOnce() {
 }
 
 export async function ensureSeed() {
-  for (const s of SEED) {
-    const existing = await db.profiles.where("email").equals(s.email).first();
-    const password_hash = await hashPassword(s.email, s.password);
-    if (existing) {
-      await db.profiles.update(existing.id, { password_hash, full_name: s.full_name });
-      const roleRow = await db.user_roles.where("user_id").equals(existing.id).first();
-      if (!roleRow) await db.user_roles.add({ id: uid(), user_id: existing.id, role: s.role });
-      else await db.user_roles.update(roleRow.id, { role: s.role });
-    } else {
-      const id = uid();
-      await db.profiles.add({
-        id,
-        email: s.email,
-        full_name: s.full_name,
-        password_hash,
-        created_at: nowIso(),
-      });
-      await db.user_roles.add({ id: uid(), user_id: id, role: s.role });
-    }
-  }
   await wipeToEmptyOnce();
   const settings = await db.settings.get("finance");
   if (!settings) {
@@ -137,23 +102,27 @@ export async function ensureSeed() {
 }
 
 async function hydrateCloud() {
-  if (!(await cloudLive())) return;
-  const local = await db.records.toArray();
-  if (local.length) {
-    await apiJson("/api/crm/merge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ records: local }),
-    });
-  }
-  const remote = await apiJson<{ data: RecordRow[] }>("/api/crm/records");
-  await db.records.clear();
-  if (remote.data?.length) await db.records.bulkPut(remote.data);
   try {
-    const fin = await apiJson<{ data: SettingsRow }>("/api/crm/settings/finance");
-    if (fin.data) await db.settings.put(fin.data);
+    if (!(await cloudLive())) return;
+    const local = await db.records.toArray();
+    if (local.length) {
+      await apiJson("/api/crm/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ records: local }),
+      });
+    }
+    const remote = await apiJson<{ data: RecordRow[] }>("/api/crm/records");
+    await db.records.clear();
+    if (remote.data?.length) await db.records.bulkPut(remote.data);
+    try {
+      const fin = await apiJson<{ data: SettingsRow }>("/api/crm/settings/finance");
+      if (fin.data) await db.settings.put(fin.data);
+    } catch {
+      /* keep local finance */
+    }
   } catch {
-    /* keep local finance */
+    cloud = "no";
   }
 }
 
@@ -171,18 +140,22 @@ async function importLegacyOnce() {
     return;
   }
   const rows = payload.records ?? [];
-  if (await cloudLive()) {
-    await apiJson("/api/crm/merge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ records: rows, finance: payload.finance }),
-    });
-    if (payload.finance) {
-      await apiJson("/api/crm/settings/finance", {
-        method: "PUT",
+  if (rows.length && (await cloudLive())) {
+    try {
+      await apiJson("/api/crm/merge", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base_balance: payload.finance.base_balance }),
+        body: JSON.stringify({ records: rows, finance: payload.finance }),
       });
+      if (payload.finance) {
+        await apiJson("/api/crm/settings/finance", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base_balance: payload.finance.base_balance }),
+        });
+      }
+    } catch {
+      /* local import still applies */
     }
   }
   if (rows.length) await db.records.bulkPut(rows);

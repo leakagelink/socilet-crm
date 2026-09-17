@@ -1,7 +1,9 @@
-import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { json } from "./http-util.mjs";
+import { corsAndOptions, escapeHtml, guardOrigin, readJson } from "./security.mjs";
+import { inboundOk, requireApiUser } from "./auth-api.mjs";
 
 const RESEND = "https://api.resend.com";
 
@@ -24,48 +26,6 @@ function readRows(file) {
   } catch {
     return [];
   }
-}
-
-function json(res, status, body) {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(JSON.stringify(body));
-}
-
-function originOk(req) {
-  const origin = req.headers.origin || "";
-  const extra = (process.env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const allowed = [
-    "http://127.0.0.1:43721",
-    "http://localhost:43721",
-    "https://crm.proofvault.space",
-    "https://localhost",
-    "http://localhost",
-    "capacitor://localhost",
-    "ionic://localhost",
-    ...extra,
-  ];
-  if (!origin) return true;
-  return allowed.includes(origin);
-}
-
-function setCors(req, res) {
-  const origin = req.headers.origin;
-  if (origin && originOk(req)) res.setHeader("Access-Control-Allow-Origin", origin);
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-}
-
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on("data", (c) => chunks.push(c));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
-  });
 }
 
 function loadStore() {
@@ -176,28 +136,43 @@ function getMailbox(env, id) {
 }
 
 export async function handleEmailRequest(req, res, env) {
-  setCors(req, res);
-  if (req.method === "OPTIONS") {
-    res.statusCode = 204;
-    res.end();
-    return true;
-  }
-  if (!originOk(req)) {
-    json(res, 403, { error: "Origin not allowed" });
-    return true;
-  }
+  if (corsAndOptions(req, res, env)) return true;
 
   const path = pathname(req);
   const qs = query(req);
+  const inbound = path.match(/^\/api\/email\/inbound(?:\/([^/]+))?$/);
 
   try {
+    if (req.method === "POST" && inbound) {
+      if (!inboundOk(req, env)) {
+        json(res, 401, { error: "Invalid inbound secret" });
+        return true;
+      }
+      const box = getMailbox(env, inbound[1] || qs.get("mailbox"));
+      if (!box) {
+        json(res, 200, { ok: true });
+        return true;
+      }
+      const event = await readJson(req, res);
+      if (!event) return true;
+      if (event.type === "email.received" && event.data?.email_id) {
+        await resendWithKey(box.apiKey, "GET", `/emails/receiving/${event.data.email_id}`);
+      }
+      json(res, 200, { ok: true });
+      return true;
+    }
+
+    if (!guardOrigin(req, res, env)) return true;
+    if (!(await requireApiUser(req, res, env))) return true;
+
     if (req.method === "GET" && path === "/api/email/mailboxes") {
       json(res, 200, { data: withEnvMailbox(env, loadStore()).map(publicBox) });
       return true;
     }
 
     if (req.method === "POST" && path === "/api/email/mailboxes") {
-      const input = JSON.parse((await readBody(req)) || "{}");
+      const input = await readJson(req, res);
+      if (!input) return true;
       const label = String(input.label || "").trim();
       const from = String(input.from || "").trim();
       const apiKey = String(input.apiKey || "").trim();
@@ -259,21 +234,6 @@ export async function handleEmailRequest(req, res, env) {
       return true;
     }
 
-    const inbound = path.match(/^\/api\/email\/inbound(?:\/([^/]+))?$/);
-    if (req.method === "POST" && inbound) {
-      const box = getMailbox(env, inbound[1] || qs.get("mailbox"));
-      if (!box) {
-        json(res, 200, { ok: true });
-        return true;
-      }
-      const event = JSON.parse((await readBody(req)) || "{}");
-      if (event.type === "email.received" && event.data?.email_id) {
-        await resendWithKey(box.apiKey, "GET", `/emails/receiving/${event.data.email_id}`);
-      }
-      json(res, 200, { ok: true });
-      return true;
-    }
-
     const box = getMailbox(env, qs.get("mailbox") || "");
     if (!box && path !== "/api/email/mailboxes") {
       if (path === "/api/email/status") {
@@ -321,12 +281,13 @@ export async function handleEmailRequest(req, res, env) {
     }
 
     if (req.method === "POST" && path === "/api/email/send") {
-      const input = JSON.parse((await readBody(req)) || "{}");
+      const input = await readJson(req, res);
+      if (!input) return true;
       const active = getMailbox(env, input.mailboxId || qs.get("mailbox")) || box;
       const to = String(input.to || "").trim();
       const subject = String(input.subject || "").trim();
       const text = String(input.text || input.body || "").trim();
-      const html = String(input.html || `<p>${text.replace(/\n/g, "<br/>")}</p>`);
+      const html = `<p>${escapeHtml(text).replace(/\n/g, "<br/>")}</p>`;
       if (!to.includes("@") || !subject || !text) {
         json(res, 400, { error: "to, subject, and body are required" });
         return true;

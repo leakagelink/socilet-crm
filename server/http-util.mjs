@@ -14,7 +14,7 @@ export function originOk(req, env = process.env) {
     "ionic://localhost",
     ...extra,
   ];
-  if (!origin) return true;
+  if (!origin) return false;
   return allowed.includes(origin);
 }
 
@@ -22,7 +22,12 @@ export function setCors(req, res, env = process.env) {
   const origin = req.headers.origin;
   if (origin && originOk(req, env)) res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "600");
+  res.setHeader("Vary", "Origin");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "same-origin");
 }
 
 export function json(res, status, body) {
@@ -31,10 +36,19 @@ export function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-export function readBody(req) {
+export function readBody(req, maxBytes = 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (c) => chunks.push(c));
+    let size = 0;
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > maxBytes) {
+        req.destroy();
+        resolve(null);
+        return;
+      }
+      chunks.push(c);
+    });
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });

@@ -27,10 +27,11 @@ import {
   MessageSquare,
   Video,
   Folder,
+  Shield,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
+import { OverlayPortal } from "@/components/ui/overlay-portal";
 import { MODULES } from "@/lib/modules";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/workspaces": Folder,
   "/meetings": Video,
   "/blocked-messages": Ban,
+  "/account": Shield,
 };
 
 const groups = [
@@ -86,12 +88,13 @@ const groups = [
   },
   {
     name: "Ops",
-    paths: ["/emails", "/notifications", "/reminders", "/service-credentials", "/contact-messages", "/blocked-messages"],
+    paths: ["/emails", "/notifications", "/reminders", "/service-credentials", "/contact-messages", "/blocked-messages", "/account"],
   },
 ];
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
+  "/account": "Account",
   ...Object.fromEntries(MODULES.map((m) => [m.path, m.title])),
 };
 
@@ -158,7 +161,7 @@ export function AppLayout() {
     void restoreMailboxesToServer();
   }, []);
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
+    <div className="min-h-full lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="glass hidden border-r border-white/8 p-4 lg:sticky lg:top-0 lg:block lg:h-screen lg:overflow-y-auto">
         <div className="mb-7 flex items-center gap-3 px-1">
           <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-gold to-[#c9a24a] font-display text-lg text-ink shadow-[0_8px_24px_rgba(232,195,106,0.35)]">
@@ -171,26 +174,21 @@ export function AppLayout() {
         </div>
         <NavList />
       </aside>
-      <div className="flex min-h-screen flex-col">
-        <header className="glass sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+      <div className="flex min-h-full flex-col">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/8 bg-panel px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
           <div className="flex items-center gap-3">
-            <Dialog.Root modal={false} open={open} onOpenChange={setOpen}>
-              <Dialog.Trigger asChild>
-                <Button className="lg:hidden" variant="outline" size="icon" aria-label="Open menu">
-                  <Menu className="h-4 w-4" />
-                </Button>
-              </Dialog.Trigger>
-              <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-black/55 lg:hidden" onClick={() => setOpen(false)} />
-                <Dialog.Content
-                  aria-describedby={undefined}
-                  className="sheet-scroll glass fixed inset-y-0 left-0 z-50 w-[min(18rem,88vw)] overflow-y-scroll border-r border-line p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden"
-                >
-                  <Dialog.Title className="mb-4 text-sm text-gold">Modules</Dialog.Title>
+            <Button className="lg:hidden" variant="outline" size="icon" aria-label="Open menu" onClick={() => setOpen(true)}>
+              <Menu className="h-4 w-4" />
+            </Button>
+            <OverlayPortal open={open} onClose={() => setOpen(false)}>
+              <div className="fixed inset-0 z-50 lg:hidden">
+                <button type="button" aria-label="Close menu" className="absolute inset-0 bg-black/55" onClick={() => setOpen(false)} />
+                <div className="sheet-scroll absolute inset-y-0 left-0 z-10 w-[min(18rem,88vw)] overflow-y-auto border-r border-line bg-panel p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                  <div className="mb-4 text-sm text-gold">Modules</div>
                   <NavList onGo={() => setOpen(false)} />
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
+                </div>
+              </div>
+            </OverlayPortal>
             <span className="lg:hidden font-display text-base">Socilet</span>
             <ClockLabel />
           </div>

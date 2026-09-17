@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { insertRecord } from "@/lib/db";
-import { apiUrl } from "@/lib/apiBase";
+import { apiFetch } from "@/lib/apiBase";
 import { forgetMailbox, rememberMailbox } from "@/lib/mailboxStore";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +51,7 @@ function accentFor(id: string) {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(apiUrl(path), init);
+  const res = await apiFetch(path, init);
   const raw = await res.text();
   const type = res.headers.get("content-type") || "";
   if (!type.includes("json")) {
@@ -320,7 +320,7 @@ export function EmailsPage() {
       ) : null}
 
       <div
-        className="grid min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-2xl border border-line bg-panel/60 lg:overflow-hidden lg:grid-cols-[minmax(17rem,22rem)_1fr]"
+        className="grid rounded-2xl border border-line bg-panel/60 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:grid-cols-[minmax(17rem,22rem)_1fr]"
         style={{ borderTopColor: accent }}
       >
         <section
