@@ -17,17 +17,28 @@ function copyHtaccess() {
   };
 }
 
-function emailApi(env: Record<string, string>) {
+function sociletApi(env: Record<string, string>) {
   const run = (req: unknown, res: unknown, next: () => void) => {
     const url = String((req as { url?: string }).url || "");
-    if (!url.split("?")[0].startsWith("/api/email")) return next();
-    const spec = pathToFileURL(path.join(import.meta.dirname, "server", "email-api.mjs")).href;
-    void import(spec).then((m: { handleEmailRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
-      m.handleEmailRequest(req, res, env),
-    );
+    const route = url.split("?")[0];
+    if (route.startsWith("/api/email")) {
+      const spec = pathToFileURL(path.join(import.meta.dirname, "server", "email-api.mjs")).href;
+      void import(spec).then((m: { handleEmailRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
+        m.handleEmailRequest(req, res, env),
+      );
+      return;
+    }
+    if (route.startsWith("/api/crm")) {
+      const spec = pathToFileURL(path.join(import.meta.dirname, "server", "crm-api.mjs")).href;
+      void import(spec).then((m: { handleCrmRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
+        m.handleCrmRequest(req, res, env),
+      );
+      return;
+    }
+    next();
   };
   return {
-    name: "socilet-email-api",
+    name: "socilet-api",
     configureServer(server: { middlewares: { use: (fn: typeof run) => void } }) {
       server.middlewares.use(run);
     },
@@ -40,7 +51,7 @@ function emailApi(env: Record<string, string>) {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
-    plugins: [react(), tailwindcss(), copyHtaccess(), emailApi(env)],
+    plugins: [react(), tailwindcss(), copyHtaccess(), sociletApi(env)],
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "src"),

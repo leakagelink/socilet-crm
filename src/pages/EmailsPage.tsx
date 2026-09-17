@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { insertRecord } from "@/lib/db";
+import { apiUrl } from "@/lib/apiBase";
 import { forgetMailbox, rememberMailbox } from "@/lib/mailboxStore";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +51,7 @@ function accentFor(id: string) {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init);
+  const res = await fetch(apiUrl(path), init);
   const raw = await res.text();
   const type = res.headers.get("content-type") || "";
   if (!type.includes("json")) {

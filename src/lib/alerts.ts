@@ -1,4 +1,5 @@
 import { insertRecord, listRecords, updateRecord, type RecordRow } from "@/lib/db";
+import { apiUrl } from "@/lib/apiBase";
 
 export type AlertItem = {
   source_id: string;
@@ -35,13 +36,13 @@ async function fromModule(
 
 async function fromEmail(): Promise<AlertItem[]> {
   try {
-    const boxesRes = await fetch("/api/email/mailboxes");
+    const boxesRes = await fetch(apiUrl("/api/email/mailboxes"));
     const type = boxesRes.headers.get("content-type") || "";
     if (!type.includes("json") || !boxesRes.ok) return [];
     const boxes = (await boxesRes.json()) as { data?: { id: string; label: string }[] };
     const out: AlertItem[] = [];
     for (const box of boxes.data ?? []) {
-      const inboxRes = await fetch(`/api/email/inbox?mailbox=${encodeURIComponent(box.id)}`);
+      const inboxRes = await fetch(apiUrl(`/api/email/inbox?mailbox=${encodeURIComponent(box.id)}`));
       if (!inboxRes.ok) continue;
       const inbox = (await inboxRes.json()) as {
         data?: { id: string; subject?: string; from?: string }[];
@@ -183,6 +184,7 @@ export async function syncNotifications() {
     localStorage.setItem("socilet.alerts.v1", JSON.stringify([...known]));
     return listRecords("notifications");
   }
+  const fresh: AlertItem[] = [];
   for (const a of alerts) {
     if (known.has(a.source_id)) continue;
     await insertRecord("notifications", {
@@ -194,8 +196,10 @@ export async function syncNotifications() {
       source_id: a.source_id,
     });
     known.add(a.source_id);
+    fresh.push(a);
   }
   localStorage.setItem("socilet.alerts.v1", JSON.stringify([...known]));
+  await showNativeTray(fresh);
   return listRecords("notifications");
 }
 
@@ -207,5 +211,25 @@ export async function markAllNotificationsRead(rows: RecordRow[]) {
   for (const row of rows) {
     if (row.data.read === true) continue;
     await updateRecord(row.id, { ...row.data, read: true });
+  }
+}
+
+async function showNativeTray(items: AlertItem[]) {
+  if (!items.length) return;
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    if (!Capacitor.isNativePlatform()) return;
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
+    const perm = await LocalNotifications.requestPermissions();
+    if (perm.display !== "granted") return;
+    await LocalNotifications.schedule({
+      notifications: items.slice(0, 6).map((a, i) => ({
+        id: (Date.now() % 100000) + i,
+        title: a.title,
+        body: a.message,
+      })),
+    });
+  } catch {
+    /* web or plugin missing */
   }
 }

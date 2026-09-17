@@ -42,6 +42,10 @@ function originOk(req) {
     "http://127.0.0.1:43721",
     "http://localhost:43721",
     "https://crm.proofvault.space",
+    "https://localhost",
+    "http://localhost",
+    "capacitor://localhost",
+    "ionic://localhost",
     ...extra,
   ];
   if (!origin) return true;
@@ -51,7 +55,7 @@ function originOk(req) {
 function setCors(req, res) {
   const origin = req.headers.origin;
   if (origin && originOk(req)) res.setHeader("Access-Control-Allow-Origin", origin);
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 

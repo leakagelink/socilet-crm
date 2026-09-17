@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { handleEmailRequest } from "./server/email-api.mjs";
+import { handleCrmRequest } from "./server/crm-api.mjs";
 
 const dist = join(import.meta.dirname, "dist");
 const port = Number(process.env.PORT || 43721);
@@ -19,6 +20,10 @@ createServer(async (req, res) => {
   const path = (req.url || "/").split("?")[0];
   if (path.startsWith("/api/email")) {
     await handleEmailRequest(req, res, process.env);
+    return;
+  }
+  if (path.startsWith("/api/crm")) {
+    await handleCrmRequest(req, res, process.env);
     return;
   }
   let file = join(dist, path === "/" ? "index.html" : path);

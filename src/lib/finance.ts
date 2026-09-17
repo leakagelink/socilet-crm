@@ -1,4 +1,5 @@
-import { db, listRecords } from "@/lib/db";
+import { db, cloudLive, listRecords, type SettingsRow } from "@/lib/db";
+import { apiJson } from "@/lib/apiBase";
 
 export type FinanceSnapshot = {
   base: number;
@@ -18,9 +19,36 @@ function sumAmount(rows: Awaited<ReturnType<typeof listRecords>>) {
   return rows.reduce((acc, r) => acc + num(r.data.amount), 0);
 }
 
+async function readFinance(): Promise<SettingsRow> {
+  if (await cloudLive()) {
+    const res = await apiJson<{ data: SettingsRow }>("/api/crm/settings/finance");
+    if (res.data) {
+      await db.settings.put(res.data);
+      return res.data;
+    }
+  }
+  return (await db.settings.get("finance")) ?? { id: "finance", base_balance: 0, updated_at: new Date().toISOString() };
+}
+
+async function writeFinance(base: number) {
+  const row: SettingsRow = { id: "finance", base_balance: base, updated_at: new Date().toISOString() };
+  if (await cloudLive()) {
+    const res = await apiJson<{ data: SettingsRow }>("/api/crm/settings/finance", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ base_balance: base }),
+    });
+    if (res.data) {
+      await db.settings.put(res.data);
+      return;
+    }
+  }
+  await db.settings.put(row);
+}
+
 export async function loadFinance(): Promise<FinanceSnapshot> {
-  const settings = await db.settings.get("finance");
-  const base = settings?.base_balance ?? 0;
+  const settings = await readFinance();
+  const base = settings.base_balance ?? 0;
   const [other, cosmofeed, recurring, invoices, spends, investments] = await Promise.all([
     listRecords("other_income"),
     listRecords("cosmofeed"),
@@ -47,10 +75,10 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
 export async function setDesiredAvailable(desired: number) {
   const snap = await loadFinance();
   const base = desired - snap.totalIncome + snap.totalSpends;
-  await db.settings.put({ id: "finance", base_balance: base, updated_at: new Date().toISOString() });
+  await writeFinance(base);
   return { ...snap, base, available: desired };
 }
 
 export async function setBaseBalance(base: number) {
-  await db.settings.put({ id: "finance", base_balance: base, updated_at: new Date().toISOString() });
+  await writeFinance(base);
 }

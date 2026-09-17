@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
+import { apiJson } from "@/lib/apiBase";
 import { hashPassword, nowIso, uid } from "@/lib/utils";
 
 export type RoleName = "admin" | "user";
@@ -62,6 +63,22 @@ export class SociletDB extends Dexie {
 
 export const db = new SociletDB();
 
+let cloud: "unknown" | "yes" | "no" = "unknown";
+let cloudChecked = 0;
+
+export async function cloudLive() {
+  if (cloud === "yes") return true;
+  if (cloud === "no" && Date.now() - cloudChecked < 20_000) return false;
+  try {
+    const data = await apiJson<{ ok?: boolean }>("/api/crm/health");
+    cloud = data.ok ? "yes" : "no";
+  } catch {
+    cloud = "no";
+  }
+  cloudChecked = Date.now();
+  return cloud === "yes";
+}
+
 const SEED = [
   {
     email: "admin@socilet.local",
@@ -114,24 +131,74 @@ export async function ensureSeed() {
   if (!settings) {
     await db.settings.put({ id: "finance", base_balance: 0, updated_at: nowIso() });
   }
+  await hydrateCloud();
+}
+
+async function hydrateCloud() {
+  if (!(await cloudLive())) return;
+  const local = await db.records.toArray();
+  if (local.length) {
+    await apiJson("/api/crm/merge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records: local }),
+    });
+  }
+  const remote = await apiJson<{ data: RecordRow[] }>("/api/crm/records");
+  await db.records.clear();
+  if (remote.data?.length) await db.records.bulkPut(remote.data);
+  try {
+    const fin = await apiJson<{ data: SettingsRow }>("/api/crm/settings/finance");
+    if (fin.data) await db.settings.put(fin.data);
+  } catch {
+    /* keep local finance */
+  }
 }
 
 export async function listRecords(module: string) {
+  if (await cloudLive()) {
+    const res = await apiJson<{ data: RecordRow[] }>(`/api/crm/records?module=${encodeURIComponent(module)}`);
+    return [...(res.data ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
   return db.records.where("module").equals(module).reverse().sortBy("created_at");
 }
 
 export async function getRecord(id: string) {
+  if (await cloudLive()) {
+    const res = await apiJson<{ data: RecordRow[] }>("/api/crm/records");
+    return (res.data ?? []).find((r) => r.id === id);
+  }
   return db.records.get(id);
 }
 
 export async function insertRecord(module: string, data: Record<string, unknown>) {
   const t = nowIso();
   const row: RecordRow = { id: uid(), module, data, created_at: t, updated_at: t };
+  if (await cloudLive()) {
+    const res = await apiJson<{ data: RecordRow }>("/api/crm/records", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(row),
+    });
+    const saved = res.data ?? row;
+    await db.records.put(saved);
+    return saved;
+  }
   await db.records.add(row);
   return row;
 }
 
 export async function updateRecord(id: string, data: Record<string, unknown>) {
+  if (await cloudLive()) {
+    const res = await apiJson<{ data: RecordRow }>(`/api/crm/records/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data }),
+    });
+    if (!res.data) throw new Error("Not found");
+    await db.records.put(res.data);
+    return res.data;
+  }
   const existing = await db.records.get(id);
   if (!existing) throw new Error("Not found");
   const next = { ...existing, data, updated_at: nowIso() };
@@ -140,5 +207,8 @@ export async function updateRecord(id: string, data: Record<string, unknown>) {
 }
 
 export async function deleteRecord(id: string) {
+  if (await cloudLive()) {
+    await apiJson(`/api/crm/records/${id}`, { method: "DELETE" });
+  }
   await db.records.delete(id);
 }
