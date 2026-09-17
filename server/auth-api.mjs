@@ -45,8 +45,13 @@ export async function handleAuthRequest(req, res, env = process.env) {
 
   try {
     if (req.method === "POST" && path === "/api/auth/login") {
-      if (!rateLimit(`login:${clientIp(req)}`, 8, 15 * 60 * 1000)) {
-        json(res, 429, { error: "Too many sign-in attempts. Wait 15 minutes." });
+      const limit = rateLimit(`login:${clientIp(req)}`, 5, 5 * 60 * 1000);
+      if (!limit.ok) {
+        res.setHeader("Retry-After", String(limit.retryAfter));
+        json(res, 429, {
+          error: "Too many sign-in attempts",
+          retryAfter: limit.retryAfter,
+        });
         return true;
       }
       const input = await readJson(req, res);
@@ -73,8 +78,13 @@ export async function handleAuthRequest(req, res, env = process.env) {
     }
 
     if (req.method === "POST" && path === "/api/auth/totp") {
-      if (!rateLimit(`totp:${clientIp(req)}`, 12, 15 * 60 * 1000)) {
-        json(res, 429, { error: "Too many codes. Wait 15 minutes." });
+      const limit = rateLimit(`totp:${clientIp(req)}`, 5, 5 * 60 * 1000);
+      if (!limit.ok) {
+        res.setHeader("Retry-After", String(limit.retryAfter));
+        json(res, 429, {
+          error: "Too many codes",
+          retryAfter: limit.retryAfter,
+        });
         return true;
       }
       const input = await readJson(req, res);

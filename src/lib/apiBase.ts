@@ -47,12 +47,24 @@ export async function apiFetch(path: string, init?: RequestInit) {
   return res;
 }
 
+export class ApiError extends Error {
+  status: number;
+  retryAfter: number;
+  constructor(message: string, status = 400, retryAfter = 0) {
+    super(message);
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await apiFetch(path, init);
   const type = res.headers.get("content-type") || "";
   const raw = await res.text();
   if (!type.includes("json")) throw new Error("API did not return JSON");
-  const data = (raw ? JSON.parse(raw) : {}) as T & { error?: string };
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  const data = (raw ? JSON.parse(raw) : {}) as T & { error?: string; retryAfter?: number };
+  if (!res.ok) {
+    throw new ApiError(data.error || res.statusText, res.status, Number(data.retryAfter) || 0);
+  }
   return data;
 }

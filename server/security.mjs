@@ -15,10 +15,11 @@ export function rateLimit(key, max, windowMs) {
   const row = hits.get(key);
   if (!row || now > row.reset) {
     hits.set(key, { n: 1, reset: now + windowMs });
-    return true;
+    return { ok: true, retryAfter: 0 };
   }
   row.n += 1;
-  return row.n <= max;
+  if (row.n <= max) return { ok: true, retryAfter: 0 };
+  return { ok: false, retryAfter: Math.max(1, Math.ceil((row.reset - now) / 1000)) };
 }
 
 export async function readJson(req, res) {
