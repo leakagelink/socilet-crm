@@ -1,0 +1,210 @@
+import { insertRecord, listRecords, updateRecord, type RecordRow } from "@/lib/db";
+
+export type AlertItem = {
+  source_id: string;
+  title: string;
+  message: string;
+  level: "info" | "success" | "warning" | "error";
+  href: string;
+};
+
+function str(v: unknown) {
+  return String(v ?? "").trim();
+}
+
+function ts(v: unknown) {
+  const t = new Date(str(v)).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function startOfDay(d = new Date()) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x.getTime();
+}
+
+async function fromModule(
+  module: string,
+  href: string,
+  pred: (row: RecordRow) => AlertItem | null,
+) {
+  const rows = await listRecords(module);
+  return rows.map(pred).filter((x): x is AlertItem => Boolean(x));
+}
+
+async function fromEmail(): Promise<AlertItem[]> {
+  try {
+    const boxesRes = await fetch("/api/email/mailboxes");
+    const type = boxesRes.headers.get("content-type") || "";
+    if (!type.includes("json") || !boxesRes.ok) return [];
+    const boxes = (await boxesRes.json()) as { data?: { id: string; label: string }[] };
+    const out: AlertItem[] = [];
+    for (const box of boxes.data ?? []) {
+      const inboxRes = await fetch(`/api/email/inbox?mailbox=${encodeURIComponent(box.id)}`);
+      if (!inboxRes.ok) continue;
+      const inbox = (await inboxRes.json()) as {
+        data?: { id: string; subject?: string; from?: string }[];
+      };
+      for (const mail of inbox.data ?? []) {
+        out.push({
+          source_id: `email:${mail.id}`,
+          title: "New email",
+          message: `${mail.subject || "(no subject)"} · ${mail.from || ""} (${box.label})`,
+          level: "info",
+          href: "/emails",
+        });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export async function collectAlerts(): Promise<AlertItem[]> {
+  const today = startOfDay();
+  const soon = today + 2 * 86400000;
+  const now = Date.now();
+
+  const [reminders, tasks, projects, invoices, quotes, recurring, emails] = await Promise.all([
+    fromModule("reminders", "/reminders", (row) => {
+      const status = str(row.data.status);
+      const due = ts(row.data.due_at);
+      if (status === "done" || status === "skipped" || due == null || due > now + 3600000) return null;
+      const overdue = due < now;
+      return {
+        source_id: `reminder:${row.id}`,
+        title: overdue ? "Reminder overdue" : "Reminder due",
+        message: str(row.data.title) || "Reminder",
+        level: overdue ? "error" : "warning",
+        href: "/reminders",
+      };
+    }),
+    fromModule("tasks", "/tasks", (row) => {
+      const status = str(row.data.status);
+      const due = ts(row.data.due_date);
+      if (status === "done" || due == null || due > soon) return null;
+      const overdue = due < today;
+      return {
+        source_id: `task:${row.id}`,
+        title: overdue ? "Task overdue" : "Task due soon",
+        message: `${str(row.data.title)} (${status || "open"})`,
+        level: overdue ? "error" : "warning",
+        href: "/tasks",
+      };
+    }),
+    fromModule("projects", "/projects", (row) => {
+      const status = str(row.data.status);
+      const start = ts(row.data.start_date);
+      if (status === "done" || status === "paused" || start == null) return null;
+      if (start > today + 86400000) return null;
+      if (status !== "planned" && status !== "active") return null;
+      const starting = start >= today && start < today + 86400000;
+      if (!starting && status !== "planned") return null;
+      return {
+        source_id: `project:${row.id}`,
+        title: starting ? "Project starts today" : "Project pending",
+        message: `${str(row.data.name)} · ${str(row.data.client)}`,
+        level: "info",
+        href: "/projects",
+      };
+    }),
+    fromModule("invoices", "/invoices", (row) => {
+      const status = str(row.data.status);
+      const due = ts(row.data.due_date);
+      if (status === "paid" || status === "void" || status === "draft" || due == null) return null;
+      if (due > today) return null;
+      return {
+        source_id: `invoice:${row.id}`,
+        title: "Invoice overdue",
+        message: `${str(row.data.invoice_no)} · ${str(row.data.client)}`,
+        level: "error",
+        href: "/invoices",
+      };
+    }),
+    fromModule("quotations", "/quotations", (row) => {
+      const status = str(row.data.status);
+      const until = ts(row.data.valid_until);
+      if (status !== "sent" || until == null || until > soon) return null;
+      return {
+        source_id: `quote:${row.id}`,
+        title: "Quote expiring",
+        message: `${str(row.data.quote_no)} · ${str(row.data.client)}`,
+        level: "warning",
+        href: "/quotations",
+      };
+    }),
+    fromModule("recurring_earnings", "/recurring-earnings", (row) => {
+      if (row.data.active === false) return null;
+      const next = ts(row.data.next_date);
+      if (next == null || next > soon) return null;
+      return {
+        source_id: `recurring:${row.id}`,
+        title: "Recurring payment due",
+        message: str(row.data.name),
+        level: "info",
+        href: "/recurring-earnings",
+      };
+    }),
+    fromEmail(),
+  ]);
+
+  return [...emails, ...reminders, ...tasks, ...projects, ...invoices, ...quotes, ...recurring];
+}
+
+export async function syncNotifications() {
+  const [existing, alerts] = await Promise.all([listRecords("notifications"), collectAlerts()]);
+  const seen = new Set(existing.map((r) => str(r.data.source_id)));
+  let primed: string[] = [];
+  try {
+    primed = JSON.parse(localStorage.getItem("socilet.alerts.v1") || "[]") as string[];
+  } catch {
+    primed = [];
+  }
+  const known = new Set([...primed, ...seen]);
+  const firstRun = primed.length === 0 && existing.length === 0;
+  if (firstRun) {
+    for (const a of alerts) {
+      if (a.source_id.startsWith("email:")) {
+        known.add(a.source_id);
+        continue;
+      }
+      await insertRecord("notifications", {
+        title: a.title,
+        message: a.message,
+        level: a.level,
+        read: false,
+        href: a.href,
+        source_id: a.source_id,
+      });
+      known.add(a.source_id);
+    }
+    localStorage.setItem("socilet.alerts.v1", JSON.stringify([...known]));
+    return listRecords("notifications");
+  }
+  for (const a of alerts) {
+    if (known.has(a.source_id)) continue;
+    await insertRecord("notifications", {
+      title: a.title,
+      message: a.message,
+      level: a.level,
+      read: false,
+      href: a.href,
+      source_id: a.source_id,
+    });
+    known.add(a.source_id);
+  }
+  localStorage.setItem("socilet.alerts.v1", JSON.stringify([...known]));
+  return listRecords("notifications");
+}
+
+export async function markNotificationRead(row: RecordRow) {
+  await updateRecord(row.id, { ...row.data, read: true });
+}
+
+export async function markAllNotificationsRead(rows: RecordRow[]) {
+  for (const row of rows) {
+    if (row.data.read === true) continue;
+    await updateRecord(row.id, { ...row.data, read: true });
+  }
+}

@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { MODULES } from "@/lib/modules";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
 
 const links = [{ path: "/", title: "Dashboard" }, ...MODULES.map((m) => ({ path: m.path, title: m.title }))];
@@ -65,6 +66,7 @@ export function AppLayout() {
             <span className="lg:hidden text-sm font-medium">Socilet CRM</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
+            <NotificationBell />
             <span className="hidden sm:inline text-paper/70">{session?.email}</span>
             <Button
               variant="outline"

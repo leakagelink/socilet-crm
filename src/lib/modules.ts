@@ -223,7 +223,7 @@ export const MODULES: ModuleDef[] = [
     id: "notifications",
     title: "Notifications",
     path: "/notifications",
-    description: "In-app alerts",
+    description: "Alerts from email, tasks, projects, reminders, and due invoices",
     fields: [
       { name: "title", label: "Title", kind: "text" },
       { name: "message", label: "Message", kind: "textarea" },
