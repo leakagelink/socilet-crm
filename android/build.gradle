@@ -40,6 +40,11 @@ subprojects {
                     targetCompatibility = JavaVersion.VERSION_17
                 }
             }
+            if (project.android.hasProperty('kotlinOptions')) {
+                project.android.kotlinOptions {
+                    jvmTarget = '17'
+                }
+            }
         }
     }
 }
