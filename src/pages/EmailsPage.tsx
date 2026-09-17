@@ -190,6 +190,13 @@ export function EmailsPage() {
     return detail.data?.html?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "";
   }, [detail.data]);
 
+  function startCompose() {
+    form.reset({ to: "", subject: "", body: "" });
+    setOpenId(null);
+    setComposing(true);
+    setPane("read");
+  }
+
   function pickBox(id: string) {
     setMailboxId(id);
     setOpenId(null);
@@ -218,14 +225,7 @@ export function EmailsPage() {
             <MailPlus className="h-4 w-4" />
             {adding ? "Close setup" : "Add mailbox"}
           </Button>
-          <Button
-            className="flex-1 sm:flex-none"
-            disabled={!activeId}
-            onClick={() => {
-              setComposing(true);
-              setPane("read");
-            }}
-          >
+          <Button className="flex-1 sm:flex-none" disabled={!activeId} onClick={startCompose}>
             <PenLine className="h-4 w-4" />
             Compose
           </Button>
@@ -325,6 +325,9 @@ export function EmailsPage() {
             <Button size="sm" variant={tab === "sent" ? "default" : "ghost"} className="flex-1" onClick={() => { setTab("sent"); setOpenId(null); }}>
               <Send className="h-3.5 w-3.5" /> Sent
             </Button>
+            <Button size="sm" variant="outline" disabled={!activeId} onClick={startCompose}>
+              <PenLine className="h-3.5 w-3.5" /> New
+            </Button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {boxQ.isLoading ? <p className="p-4 text-sm text-paper/50">Loading {tab}…</p> : null}
@@ -370,7 +373,7 @@ export function EmailsPage() {
               <p className="text-xs text-paper/45">Sending as {active?.from}</p>
               <div className="grid gap-1">
                 <Label htmlFor="to">To</Label>
-                <Input id="to" {...form.register("to")} />
+                <Input id="to" placeholder="name@example.com" {...form.register("to")} />
               </div>
               <div className="grid gap-1">
                 <Label htmlFor="subject">Subject</Label>
@@ -414,12 +417,29 @@ export function EmailsPage() {
               ) : null}
             </div>
           ) : (
-            <div className="m-auto max-w-sm p-8 text-center text-sm text-paper/40">
-              {activeId ? "Inbox se ek mail kholo, ya Compose dabao." : "Pehle mailbox connect karo."}
+            <div className="m-auto grid max-w-sm gap-3 p-8 text-center text-sm text-paper/50">
+              <p>{activeId ? "Kisi ko naya mail bhejne ke liye Compose kholo, ya left se ek message padho." : "Pehle mailbox connect karo."}</p>
+              {activeId ? (
+                <Button className="mx-auto" onClick={startCompose}>
+                  <PenLine className="h-4 w-4" />
+                  Compose new mail
+                </Button>
+              ) : null}
             </div>
           )}
         </section>
       </div>
+
+      {activeId && !composing ? (
+        <button
+          type="button"
+          onClick={startCompose}
+          className="fixed bottom-5 right-5 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
+          aria-label="Compose mail"
+        >
+          <PenLine className="h-6 w-6" />
+        </button>
+      ) : null}
     </div>
   );
 }
