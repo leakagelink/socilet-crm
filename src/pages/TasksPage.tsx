@@ -7,6 +7,7 @@ import { RecordForm } from "@/components/RecordForm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { PageHeader } from "@/components/PageHeader";
 import { cn } from "@/lib/utils";
 
 const COLS = ["todo", "in_progress", "review", "done"] as const;
@@ -31,11 +32,8 @@ export function TasksPage() {
 
   return (
     <div className="grid gap-4">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Tasks</h1>
-          <p className="text-sm text-paper/60">Kanban — drag-free: use Move, or create a card</p>
-        </div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <PageHeader kicker="Work" title="Tasks" description="Kanban — move cards between columns, or add a new task." />
         <Button
           onClick={() => {
             setOpen(true);

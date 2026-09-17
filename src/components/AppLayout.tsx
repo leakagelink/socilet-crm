@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Menu, LogOut } from "lucide-react";
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -8,26 +8,61 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
 
-const links = [{ path: "/", title: "Dashboard" }, ...MODULES.map((m) => ({ path: m.path, title: m.title }))];
+const groups = [
+  { name: "Work", paths: ["/", "/projects", "/tasks", "/quotations", "/ai-analyzer"] },
+  {
+    name: "Finance",
+    paths: [
+      "/invoices",
+      "/digital-products",
+      "/recurring-earnings",
+      "/other-income",
+      "/cosmofeed",
+      "/spends",
+      "/investments",
+      "/balance-tracker",
+      "/payment-methods",
+      "/analytics",
+    ],
+  },
+  {
+    name: "Ops",
+    paths: ["/emails", "/notifications", "/reminders", "/service-credentials", "/blocked-messages"],
+  },
+];
+
+const titles: Record<string, string> = {
+  "/": "Dashboard",
+  ...Object.fromEntries(MODULES.map((m) => [m.path, m.title])),
+};
 
 function NavList({ onGo }: { onGo?: () => void }) {
   return (
-    <nav className="flex flex-col gap-1">
-      {links.map((l) => (
-        <NavLink
-          key={l.path}
-          to={l.path}
-          end={l.path === "/"}
-          onClick={onGo}
-          className={({ isActive }) =>
-            cn(
-              "rounded-lg px-3 py-2 text-sm",
-              isActive ? "bg-gold/15 text-gold" : "text-paper/75 hover:bg-line/50 hover:text-paper",
-            )
-          }
-        >
-          {l.title}
-        </NavLink>
+    <nav className="flex flex-col gap-4">
+      {groups.map((g) => (
+        <div key={g.name}>
+          <div className="mb-1 px-3 text-[10px] uppercase tracking-[0.18em] text-paper/35">{g.name}</div>
+          <div className="flex flex-col gap-0.5">
+            {g.paths.map((path) => (
+              <NavLink
+                key={path}
+                to={path}
+                end={path === "/"}
+                onClick={onGo}
+                className={({ isActive }) =>
+                  cn(
+                    "rounded-lg px-3 py-1.5 text-[13px] transition duration-200",
+                    isActive
+                      ? "bg-gold/15 text-gold shadow-[inset_2px_0_0_#e8c36a]"
+                      : "text-paper/70 hover:bg-white/5 hover:text-paper",
+                  )
+                }
+              >
+                {titles[path] ?? path}
+              </NavLink>
+            ))}
+          </div>
+        </div>
       ))}
     </nav>
   );
@@ -36,18 +71,22 @@ function NavList({ onGo }: { onGo?: () => void }) {
 export function AppLayout() {
   const { session, signOut } = useAuth();
   const navigate = useNavigate();
+  const loc = useLocation();
   const [open, setOpen] = useState(false);
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
-      <aside className="hidden border-r border-line bg-panel/50 p-4 lg:block">
-        <div className="mb-6 px-2">
-          <div className="text-xs uppercase tracking-[0.2em] text-gold/80">Socilet</div>
-          <div className="text-lg font-semibold">CRM</div>
+    <div className="min-h-screen lg:grid lg:grid-cols-[232px_1fr]">
+      <aside className="glass hidden border-r border-white/5 p-4 lg:sticky lg:top-0 lg:block lg:h-screen lg:overflow-y-auto">
+        <div className="mb-6 flex items-center gap-3 px-1">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gold font-display text-lg text-ink">S</div>
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-gold/80">Socilet</div>
+            <div className="font-display text-lg leading-none">CRM</div>
+          </div>
         </div>
         <NavList />
       </aside>
       <div className="flex min-h-screen flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <header className="glass sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
           <div className="flex items-center gap-2">
             <Dialog.Root open={open} onOpenChange={setOpen}>
               <Dialog.Trigger asChild>
@@ -57,17 +96,17 @@ export function AppLayout() {
               </Dialog.Trigger>
               <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 bg-black/50 lg:hidden" />
-                <Dialog.Content className="fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto border-r border-line bg-panel p-4 lg:hidden">
+                <Dialog.Content className="glass fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto border-r border-line p-4 lg:hidden">
                   <Dialog.Title className="mb-4 text-sm text-gold">Modules</Dialog.Title>
                   <NavList onGo={() => setOpen(false)} />
                 </Dialog.Content>
               </Dialog.Portal>
             </Dialog.Root>
-            <span className="lg:hidden text-sm font-medium">Socilet CRM</span>
+            <span className="lg:hidden font-display text-base">Socilet</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <NotificationBell />
-            <span className="hidden sm:inline text-paper/70">{session?.email}</span>
+            <span className="hidden max-w-40 truncate sm:inline text-paper/60">{session?.email}</span>
             <Button
               variant="outline"
               size="sm"
@@ -81,7 +120,7 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        <main className="flex-1 p-4 md:p-6">
+        <main key={loc.pathname} className="page-enter flex-1 p-4 md:p-7">
           <Outlet />
         </main>
       </div>

@@ -6,6 +6,7 @@ import { RecordForm } from "@/components/RecordForm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { PageHeader } from "@/components/PageHeader";
 import { inr } from "@/lib/utils";
 
 function cell(v: unknown) {
@@ -56,10 +57,7 @@ export function ModuleCrud({
     <div className="grid gap-4">
       {!hideHeader ? (
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">{module.title}</h1>
-            <p className="text-sm text-paper/60">{module.description}</p>
-          </div>
+          <PageHeader kicker="Module" title={module.title} description={module.description} />
           <Button
             onClick={() => {
               setEditing(null);
@@ -85,25 +83,29 @@ export function ModuleCrud({
       {extra}
       {q.isLoading ? <Card>Loading…</Card> : null}
       {q.isError ? <Card className="text-red-300">Could not load records.</Card> : null}
-      {q.data && q.data.length === 0 ? <Card>No rows yet. Create the first {module.title.toLowerCase()} record.</Card> : null}
+      {q.data && q.data.length === 0 ? (
+        <Card className="grid place-items-center py-12 text-center text-sm text-paper/50">
+          No rows yet. Create the first {module.title.toLowerCase()} record.
+        </Card>
+      ) : null}
       {q.data && q.data.length > 0 ? (
-        <div className="overflow-x-auto rounded-2xl border border-line">
+        <div className="overflow-x-auto rounded-2xl border border-white/8">
           <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="bg-panel">
+            <thead className="bg-white/4">
               <tr>
                 {module.fields.map((f) => (
-                  <th key={f.name} className="px-3 py-2 font-medium text-paper/70">
+                  <th key={f.name} className="px-3 py-3 text-[11px] uppercase tracking-wide font-medium text-paper/50">
                     {f.label}
                   </th>
                 ))}
-                <th className="px-3 py-2" />
+                <th className="px-3 py-3" />
               </tr>
             </thead>
             <tbody>
               {q.data.map((row) => (
-                <tr key={row.id} className="border-t border-line">
+                <tr key={row.id} className="border-t border-white/6 transition hover:bg-gold/5">
                   {module.fields.map((f) => (
-                    <td key={f.name} className="max-w-48 truncate px-3 py-2">
+                    <td key={f.name} className="max-w-48 truncate px-3 py-3">
                       {f.kind === "number" ? (typeof row.data[f.name] === "number" ? inr(row.data[f.name] as number) : cell(row.data[f.name])) : cell(row.data[f.name])}
                     </td>
                   ))}

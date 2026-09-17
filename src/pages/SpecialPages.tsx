@@ -4,50 +4,92 @@ import { Card } from "@/components/ui/card";
 import { ModuleCrud } from "@/pages/ModuleCrud";
 import { moduleById } from "@/lib/modules";
 import { setBaseBalance, setDesiredAvailable } from "@/lib/finance";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { BarChart, DonutChart } from "@/components/charts";
+import { PageHeader } from "@/components/PageHeader";
+import { listRecords } from "@/lib/db";
+import { Link } from "react-router-dom";
 
 export function DashboardPage() {
   const f = useFinance();
+  const counts = useQuery({
+    queryKey: ["dash-counts"],
+    queryFn: async () => {
+      const keys = ["projects", "tasks", "invoices", "reminders", "quotations"] as const;
+      const pairs = await Promise.all(keys.map(async (k) => [k, (await listRecords(k)).length] as const));
+      return Object.fromEntries(pairs) as Record<(typeof keys)[number], number>;
+    },
+    refetchInterval: 30_000,
+  });
+  const d = f.data;
   return (
-    <div className="grid gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-paper/60">Finance polls every 30s. Available = base + income − spends.</p>
-      </div>
+    <div className="grid gap-6">
+      <PageHeader
+        kicker="Overview"
+        title="Command deck"
+        description="Available = base + income − spends. Figures refresh every 30s."
+      />
       {f.isLoading ? <Card>Loading balances…</Card> : null}
       {f.isError ? <Card className="text-red-300">Could not load finance.</Card> : null}
-      {f.data ? (
+      {d ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <div className="text-xs uppercase text-paper/50">Available</div>
-            <div className="mt-1 text-3xl">
-              <AnimatedInr value={f.data.available} />
-            </div>
-          </Card>
-          <Card>
-            <div className="text-xs uppercase text-paper/50">Base</div>
-            <div className="mt-1 text-2xl">
-              <AnimatedInr value={f.data.base} />
-            </div>
-          </Card>
-          <Card>
-            <div className="text-xs uppercase text-paper/50">Income</div>
-            <div className="mt-1 text-2xl text-mint">
-              <AnimatedInr value={f.data.totalIncome} />
-            </div>
-          </Card>
-          <Card>
-            <div className="text-xs uppercase text-paper/50">Spends</div>
-            <div className="mt-1 text-2xl">
-              <AnimatedInr value={f.data.totalSpends} />
-            </div>
-          </Card>
+          {[
+            { label: "Available", v: d.available, extra: "text-gold" },
+            { label: "Base", v: d.base, extra: "" },
+            { label: "Income", v: d.totalIncome, extra: "text-mint" },
+            { label: "Spends", v: d.totalSpends, extra: "text-red-300" },
+          ].map((s) => (
+            <Card key={s.label} className="transition duration-300 hover:-translate-y-0.5 hover:border-gold/30">
+              <div className="text-[11px] uppercase tracking-wide text-paper/45">{s.label}</div>
+              <div className={`mt-2 font-display text-3xl ${s.extra}`}>
+                <AnimatedInr value={s.v} />
+              </div>
+            </Card>
+          ))}
         </div>
       ) : null}
-      <p className="text-xs text-paper/40">Last poll: {f.data?.polledAt ?? "—"} · investments tracked separately</p>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <h2 className="mb-4 font-display text-lg">Cash mix</h2>
+          {d ? <DonutChart income={d.totalIncome} spends={d.totalSpends} /> : <p className="text-sm text-paper/45">Waiting on finance…</p>}
+        </Card>
+        <Card>
+          <h2 className="mb-2 font-display text-lg">Stack</h2>
+          {d ? (
+            <BarChart
+              items={[
+                { label: "Base", value: d.base, color: "#e8c36a" },
+                { label: "Income", value: d.totalIncome, color: "#7ddec9" },
+                { label: "Spends", value: d.totalSpends, color: "#c45c5c" },
+              ]}
+            />
+          ) : null}
+        </Card>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {(
+          [
+            ["Projects", "/projects", counts.data?.projects ?? 0],
+            ["Tasks", "/tasks", counts.data?.tasks ?? 0],
+            ["Invoices", "/invoices", counts.data?.invoices ?? 0],
+            ["Quotes", "/quotations", counts.data?.quotations ?? 0],
+            ["Reminders", "/reminders", counts.data?.reminders ?? 0],
+          ] as const
+        ).map(([label, href, n]) => (
+          <Link key={href} to={href} className="block">
+            <Card className="transition duration-300 hover:-translate-y-0.5 hover:border-mint/30">
+              <div className="text-xs text-paper/45">{label}</div>
+              <div className="mt-1 font-display text-2xl">{n}</div>
+            </Card>
+          </Link>
+        ))}
+      </div>
+      <p className="text-xs text-paper/35">Last poll {d?.polledAt ?? "—"} · investments tracked separately</p>
     </div>
   );
 }
@@ -103,22 +145,28 @@ export function BalanceTrackerPage() {
 export function AnalyticsPage() {
   const module = moduleById("analytics")!;
   const f = useFinance();
-  const total = (f.data?.totalIncome ?? 0) + (f.data?.totalSpends ?? 0) || 1;
-  const inPct = Math.round(((f.data?.totalIncome ?? 0) / total) * 100);
   return (
     <ModuleCrud
       module={module}
       extra={
-        <Card>
-          <div className="mb-2 text-sm text-paper/60">Live mix (from finance poll)</div>
-          <div className="h-3 overflow-hidden rounded-full bg-line">
-            <div className="h-full bg-mint" style={{ width: `${inPct}%` }} />
-          </div>
-          <div className="mt-2 flex justify-between text-xs text-paper/50">
-            <span>Income {inPct}%</span>
-            <span>Spends {100 - inPct}%</span>
-          </div>
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <h2 className="mb-4 font-display text-lg">Income vs spends</h2>
+            {f.data ? <DonutChart income={f.data.totalIncome} spends={f.data.totalSpends} /> : <p className="text-sm text-paper/45">Loading…</p>}
+          </Card>
+          <Card>
+            <h2 className="mb-2 font-display text-lg">Ledger bars</h2>
+            {f.data ? (
+              <BarChart
+                items={[
+                  { label: "Base", value: f.data.base, color: "#e8c36a" },
+                  { label: "Income", value: f.data.totalIncome, color: "#7ddec9" },
+                  { label: "Spends", value: f.data.totalSpends, color: "#c45c5c" },
+                ]}
+              />
+            ) : null}
+          </Card>
+        </div>
       }
     />
   );
@@ -131,8 +179,7 @@ export function AiAnalyzerPage() {
       module={module}
       extra={
         <Card className="text-sm text-paper/70">
-          No API key required. Save prompt/result rows here, or type a local note. Optional Supabase does not change this
-          screen until you wire your own model.
+          No API key required. Save prompt/result rows here. Optional Supabase does not change this screen until you wire a model.
         </Card>
       }
     />

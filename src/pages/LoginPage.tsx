@@ -20,10 +20,13 @@ export function LoginPage() {
   const form = useForm({ resolver: zodResolver(schema), defaultValues: { email: "", password: "" } });
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <div className="mb-1 text-xs uppercase tracking-[0.25em] text-gold">Socilet</div>
-        <h1 className="mb-6 text-2xl font-semibold">Welcome back</h1>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-gold/15 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 rounded-full bg-mint/10 blur-3xl" />
+      <Card className="page-enter relative w-full max-w-md border-gold/20">
+        <div className="mb-1 text-[11px] uppercase tracking-[0.28em] text-gold">Socilet</div>
+        <h1 className="font-display mb-2 text-3xl">Welcome back</h1>
+        <p className="mb-6 text-sm text-paper/50">Sign in to the command deck. No public sign-up.</p>
         <form
           className="grid gap-3"
           onSubmit={form.handleSubmit(async (v) => {
@@ -55,7 +58,6 @@ export function LoginPage() {
             Sign in
           </Button>
         </form>
-        <p className="mt-4 text-xs text-paper/40">No public sign-up. Ask an admin for an account.</p>
       </Card>
     </div>
   );
@@ -67,7 +69,7 @@ export function DeniedPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="max-w-md">
-        <h1 className="text-xl font-semibold">Access denied</h1>
+        <h1 className="font-display text-2xl">Access denied</h1>
         <p className="mt-2 text-sm text-paper/70">This CRM is limited to admins. Your role is stored in user_roles, not on your profile.</p>
         <Button
           className="mt-4"
