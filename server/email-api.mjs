@@ -120,7 +120,7 @@ async function resendWithKey(apiKey, method, path, body) {
 }
 
 async function testKey(apiKey) {
-  await resendWithKey(apiKey, "GET", "/emails?limit=1");
+  await resendWithKey(apiKey, "GET", "/emails");
 }
 
 function pathname(req) {

@@ -40,7 +40,14 @@ const boxSchema = z.object({
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
-  const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const raw = await res.text();
+  const type = res.headers.get("content-type") || "";
+  if (!type.includes("json")) {
+    throw new Error(
+      "Email server nahi chal raha. Live par Hostinger start command `node server.mjs` hona chahiye (sirf dist upload se /api/email nahi chalta). Local: npm run dev.",
+    );
+  }
+  const data = (raw ? JSON.parse(raw) : {}) as T & { error?: string };
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
 }
@@ -126,15 +133,20 @@ export function EmailsPage() {
   });
 
   const addBox = useMutation({
-    mutationFn: (v: z.infer<typeof boxSchema>) =>
-      api<{ mailbox: Mailbox }>("/api/email/mailboxes", {
+    mutationFn: async (v: z.infer<typeof boxSchema>) => {
+      const data = await api<{ mailbox?: Mailbox }>("/api/email/mailboxes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(v),
-      }),
-    onSuccess: (data) => {
+      });
+      if (!data.mailbox?.id) {
+        throw new Error("Mailbox connect fail: server ne mailbox id nahi bheji.");
+      }
+      return data.mailbox;
+    },
+    onSuccess: (mailbox) => {
       addForm.reset();
-      setMailboxId(data.mailbox.id);
+      setMailboxId(mailbox.id);
       void qc.invalidateQueries({ queryKey: ["email-mailboxes"] });
     },
   });

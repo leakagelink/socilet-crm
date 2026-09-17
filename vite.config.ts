@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 
 function copyHtaccess() {
@@ -20,7 +21,7 @@ function emailApi(env: Record<string, string>) {
   const run = (req: unknown, res: unknown, next: () => void) => {
     const url = String((req as { url?: string }).url || "");
     if (!url.split("?")[0].startsWith("/api/email")) return next();
-    const spec = "./server/email-api.mjs";
+    const spec = pathToFileURL(path.join(import.meta.dirname, "server", "email-api.mjs")).href;
     void import(spec).then((m: { handleEmailRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
       m.handleEmailRequest(req, res, env),
     );
