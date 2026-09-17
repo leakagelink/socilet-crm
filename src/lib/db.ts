@@ -218,6 +218,26 @@ export async function updateRecord(id: string, data: Record<string, unknown>) {
   return next;
 }
 
+export async function mergeRecords(rows: RecordRow[]) {
+  if (!rows.length) return;
+  if (await cloudLive()) {
+    await apiJson("/api/crm/merge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records: rows }),
+    });
+  }
+  await db.records.bulkPut(rows);
+}
+
+export async function listAllRecords() {
+  if (await cloudLive()) {
+    const res = await apiJson<{ data: RecordRow[] }>("/api/crm/records");
+    return res.data ?? [];
+  }
+  return db.records.toArray();
+}
+
 export async function deleteRecord(id: string) {
   if (await cloudLive()) {
     await apiJson(`/api/crm/records/${id}`, { method: "DELETE" });

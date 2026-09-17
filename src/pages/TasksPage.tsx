@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { insertRecord, listRecords, updateRecord, type RecordRow } from "@/lib/db";
 import { moduleById } from "@/lib/modules";
 import { ModuleCrud } from "@/pages/ModuleCrud";
@@ -7,6 +7,7 @@ import { RecordForm } from "@/components/RecordForm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/PageHeader";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,14 @@ export function TasksPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["module", "tasks"], queryFn: () => listRecords("tasks") });
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return q.data ?? [];
+    return (q.data ?? []).filter((row) =>
+      `${row.data.title} ${row.data.assignee} ${row.data.priority} ${row.data.status}`.toLowerCase().includes(needle),
+    );
+  }, [q.data, search]);
 
   const save = useMutation({
     mutationFn: (values: Record<string, unknown>) => insertRecord("tasks", values),
@@ -42,12 +51,13 @@ export function TasksPage() {
           New task
         </Button>
       </div>
+      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks" />
       {q.isLoading ? <Card>Loading…</Card> : null}
       {q.isError ? <Card className="text-red-300">Could not load tasks.</Card> : null}
       {q.data && q.data.length === 0 ? <Card>No tasks. Add one to fill the board.</Card> : null}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {COLS.map((col) => {
-          const items = (q.data ?? []).filter((r) => String(r.data.status) === col);
+          const items = filtered.filter((r) => String(r.data.status) === col);
           return (
             <div key={col} className="kanban-col rounded-2xl border border-white/10 bg-panel/40 p-3">
               <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-wide text-gold/80">

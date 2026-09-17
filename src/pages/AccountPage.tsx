@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import {
   changeEmail,
@@ -12,9 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { PageHeader } from "@/components/PageHeader";
+import { listAllRecords, mergeRecords } from "@/lib/db";
+import { downloadText } from "@/lib/tableTools";
 
 export function AccountPage() {
   const { session, setSession } = useAuth();
+  const qc = useQueryClient();
+  const backupRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -281,6 +286,67 @@ export function AccountPage() {
             Set up 2FA
           </Button>
         )}
+      </Card>
+
+      <Card className="grid gap-3">
+        <h2 className="font-semibold">Backup</h2>
+        <p className="text-sm text-paper/55">
+          Full CRM JSON export/import — same idea as the old admin dump. Module pages also have CSV/JSON per table.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                const records = await listAllRecords();
+                downloadText(
+                  `socilet-crm-${new Date().toISOString().slice(0, 10)}.json`,
+                  JSON.stringify({ records }, null, 2),
+                  "application/json",
+                );
+                flash(`Exported ${records.length} rows.`);
+              } catch (e) {
+                setMsg(null);
+                setErr(e instanceof Error ? e.message : "Export failed");
+              }
+            }}
+          >
+            Export all JSON
+          </Button>
+          <Button variant="outline" onClick={() => backupRef.current?.click()}>
+            Import JSON
+          </Button>
+          <input
+            ref={backupRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              try {
+                const parsed = JSON.parse(await file.text()) as { records?: { id?: string; module?: string; data?: Record<string, unknown>; created_at?: string; updated_at?: string }[] };
+                const rows = (parsed.records ?? []).filter((r) => r.id && r.module && r.data);
+                if (!rows.length) throw new Error("JSON needs a records array");
+                await mergeRecords(
+                  rows.map((r) => ({
+                    id: String(r.id),
+                    module: String(r.module),
+                    data: r.data ?? {},
+                    created_at: r.created_at || new Date().toISOString(),
+                    updated_at: r.updated_at || new Date().toISOString(),
+                  })),
+                );
+                await qc.invalidateQueries();
+                flash(`Imported ${rows.length} rows.`);
+              } catch (er) {
+                setMsg(null);
+                setErr(er instanceof Error ? er.message : "Import failed");
+              }
+            }}
+          />
+        </div>
       </Card>
     </div>
   );
