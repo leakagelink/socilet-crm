@@ -40,7 +40,10 @@ export function RecordForm({
         const err = form.formState.errors[f.name]?.message as string | undefined;
         return (
           <div key={f.name} className="grid gap-1">
-            <Label htmlFor={f.name}>{f.label}</Label>
+            <Label htmlFor={f.name}>
+              {f.label}
+              {f.optional ? <span className="ml-1 text-paper/40">(optional)</span> : null}
+            </Label>
             {f.kind === "textarea" ? (
               <Textarea id={f.name} {...form.register(f.name)} />
             ) : f.kind === "select" ? (

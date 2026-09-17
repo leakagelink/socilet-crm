@@ -7,6 +7,7 @@ export type FieldDef = {
   label: string;
   kind: FieldKind;
   options?: string[];
+  optional?: boolean;
 };
 
 export type ModuleDef = {
@@ -27,9 +28,21 @@ function objectFrom(fields: FieldDef[]) {
     if (f.kind === "number") shape[f.name] = z.coerce.number().finite();
     else if (f.kind === "checkbox") shape[f.name] = z.coerce.boolean();
     else if (f.kind === "select" && f.options?.length) shape[f.name] = z.enum(f.options as [string, ...string[]]);
+    else if (f.optional) shape[f.name] = z.string().trim();
     else shape[f.name] = str();
   }
-  return z.object(shape);
+  const schema = z.object(shape);
+  if (fields.some((f) => f.name === "start_date") && fields.some((f) => f.name === "end_date")) {
+    return schema.refine(
+      (v) => {
+        const s = String((v as { start_date?: string }).start_date || "");
+        const e = String((v as { end_date?: string }).end_date || "");
+        return !s || !e || e >= s;
+      },
+      { message: "End cannot be before start", path: ["end_date"] },
+    );
+  }
+  return schema;
 }
 
 function def(partial: Omit<ModuleDef, "schema">): ModuleDef {
@@ -48,6 +61,7 @@ export const MODULES: ModuleDef[] = [
       { name: "status", label: "Status", kind: "select", options: ["planned", "active", "paused", "done"] },
       { name: "budget", label: "Budget (INR)", kind: "number" },
       { name: "start_date", label: "Start", kind: "date" },
+      { name: "end_date", label: "End", kind: "date", optional: true },
       { name: "notes", label: "Notes", kind: "textarea" },
     ],
   }),
