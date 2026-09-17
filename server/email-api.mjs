@@ -4,7 +4,27 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const RESEND = "https://api.resend.com";
-const STORE = join(process.cwd(), "data", "mailboxes.json");
+
+function storePaths() {
+  const paths = [];
+  const envFile = process.env.MAILBOX_STORE?.trim();
+  if (envFile) paths.push(envFile);
+  const dataDir = process.env.DATA_DIR?.trim();
+  if (dataDir) paths.push(join(dataDir, "mailboxes.json"));
+  paths.push(join(process.cwd(), "..", ".socilet-persist", "mailboxes.json"));
+  paths.push(join(process.cwd(), "data", "mailboxes.json"));
+  return [...new Set(paths)];
+}
+
+function readRows(file) {
+  try {
+    if (!existsSync(file)) return [];
+    const raw = JSON.parse(readFileSync(file, "utf8"));
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -45,18 +65,28 @@ function readBody(req) {
 }
 
 function loadStore() {
-  try {
-    if (!existsSync(STORE)) return [];
-    const raw = JSON.parse(readFileSync(STORE, "utf8"));
-    return Array.isArray(raw) ? raw : [];
-  } catch {
-    return [];
+  const byId = new Map();
+  for (const file of storePaths()) {
+    for (const row of readRows(file)) {
+      if (row && typeof row.id === "string" && row.apiKey) byId.set(row.id, row);
+    }
   }
+  return [...byId.values()];
 }
 
 function saveStore(rows) {
-  mkdirSync(dirname(STORE), { recursive: true });
-  writeFileSync(STORE, JSON.stringify(rows, null, 2), "utf8");
+  const body = JSON.stringify(rows, null, 2);
+  let wrote = false;
+  for (const file of storePaths()) {
+    try {
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, body, "utf8");
+      wrote = true;
+    } catch (err) {
+      console.error("mailbox persist failed", file, err);
+    }
+  }
+  if (!wrote) throw new Error("Could not persist mailboxes");
 }
 
 function maskKey(key) {
@@ -178,8 +208,28 @@ export async function handleEmailRequest(req, res, env) {
         return true;
       }
       const domain = from.match(/@([^>]+)/)?.[1]?.replace(">", "") || "";
+      const requestedId = String(input.id || "").trim();
+      if (requestedId === "env-default") {
+        json(res, 400, { error: "Cannot overwrite the env mailbox" });
+        return true;
+      }
+      const rows = loadStore();
+      const existing =
+        rows.find((r) => requestedId && r.id === requestedId) ||
+        rows.find((r) => String(r.from || "").toLowerCase() === from.toLowerCase());
+      if (existing) {
+        existing.label = label;
+        existing.from = from;
+        existing.domain = domain;
+        existing.apiKey = apiKey;
+        existing.connected = true;
+        existing.lastError = null;
+        saveStore(rows);
+        json(res, 200, { mailbox: publicBox(existing), restored: true });
+        return true;
+      }
       const row = {
-        id: randomUUID(),
+        id: requestedId || randomUUID(),
         label,
         from,
         domain,
@@ -188,7 +238,6 @@ export async function handleEmailRequest(req, res, env) {
         lastError: null,
         createdAt: new Date().toISOString(),
       };
-      const rows = loadStore();
       rows.push(row);
       saveStore(rows);
       json(res, 200, { mailbox: publicBox(row) });

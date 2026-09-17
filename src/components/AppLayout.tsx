@@ -30,6 +30,7 @@ import { MODULES } from "@/lib/modules";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
+import { restoreMailboxesToServer } from "@/lib/mailboxStore";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -142,6 +143,9 @@ export function AppLayout() {
   const navigate = useNavigate();
   const loc = useLocation();
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    void restoreMailboxesToServer();
+  }, []);
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="glass hidden border-r border-white/8 p-4 lg:sticky lg:top-0 lg:block lg:h-screen lg:overflow-y-auto">

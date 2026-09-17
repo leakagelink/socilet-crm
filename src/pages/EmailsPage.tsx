@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { insertRecord } from "@/lib/db";
+import { forgetMailbox, rememberMailbox } from "@/lib/mailboxStore";
 import { cn } from "@/lib/utils";
 
 type Mailbox = {
@@ -162,6 +163,12 @@ export function EmailsPage() {
         body: JSON.stringify(v),
       });
       if (!data.mailbox?.id) throw new Error("Mailbox connect fail: server ne mailbox id nahi bheji.");
+      await rememberMailbox({
+        id: data.mailbox.id,
+        label: v.label,
+        from: v.from,
+        apiKey: v.apiKey,
+      });
       return data.mailbox;
     },
     onSuccess: (mailbox) => {
@@ -174,7 +181,10 @@ export function EmailsPage() {
   });
 
   const removeBox = useMutation({
-    mutationFn: (id: string) => api(`/api/email/mailboxes/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: string) => {
+      await api(`/api/email/mailboxes/${id}`, { method: "DELETE" });
+      await forgetMailbox(id);
+    },
     onSuccess: () => {
       setMailboxId("");
       setOpenId(null);

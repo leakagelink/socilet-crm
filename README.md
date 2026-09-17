@@ -28,7 +28,7 @@ The app runs with **zero** `VITE_*` keys (Dexie IndexedDB). Optional Supabase: c
 
 ### Resend (socilet.in send + inbox)
 
-Har mailbox alag: CRM **Emails** → name, `From` (jaise `hello@dusra-domain.com`), Resend API `re_…` → **Add & connect**. Inbox/sent/send usi box ke. Webhook: `https://crm.proofvault.space/api/email/inbound/<mailboxId>`. Keys `data/mailboxes.json` (gitignored) par, GitHub par nahi.
+Har mailbox alag: CRM **Emails** → name, `From` (jaise `hello@dusra-domain.com`), Resend API `re_…` → **Add & connect**. Inbox/sent/send usi box ke. Webhook: `https://crm.proofvault.space/api/email/inbound/<mailboxId>`. Keys GitHub par nahi — server `../.socilet-persist/mailboxes.json` (deploy folder ke bahar) + browser remember, taaki Git update ke baad boxes reconnect na karne padhein.
 
 Hostinger Web App: add the same env vars in the panel (do not commit `.env`). After `npm run build`, run `node server.mjs` so `/api/email` exists in production. In Resend: receiving/MX for `socilet.in`, webhook `https://crm.proofvault.space/api/email/inbound` event `email.received`.
 

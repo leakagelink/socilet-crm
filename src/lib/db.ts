@@ -31,11 +31,20 @@ export type RecordRow = {
   updated_at: string;
 };
 
+export type MailAccount = {
+  id: string;
+  label: string;
+  from: string;
+  apiKey: string;
+  saved_at: string;
+};
+
 export class SociletDB extends Dexie {
   profiles!: EntityTable<Profile, "id">;
   user_roles!: EntityTable<UserRole, "id">;
   settings!: EntityTable<SettingsRow, "id">;
   records!: EntityTable<RecordRow, "id">;
+  mail_accounts!: EntityTable<MailAccount, "id">;
 
   constructor() {
     super("socilet-crm-idb");
@@ -44,6 +53,9 @@ export class SociletDB extends Dexie {
       user_roles: "id, user_id, role",
       settings: "id",
       records: "id, module, created_at",
+    });
+    this.version(2).stores({
+      mail_accounts: "id, from",
     });
   }
 }
