@@ -132,6 +132,8 @@ export async function ensureSeed() {
     await db.settings.put({ id: "finance", base_balance: 0, updated_at: nowIso() });
   }
   await hydrateCloud();
+  await importLegacyOnce();
+  await hydrateCloud();
 }
 
 async function hydrateCloud() {
@@ -153,6 +155,43 @@ async function hydrateCloud() {
   } catch {
     /* keep local finance */
   }
+}
+
+const LEGACY_MARK = "socilet-admin-export-v1";
+
+async function importLegacyOnce() {
+  const marker = await db.settings.get("legacy-import");
+  if (marker?.updated_at === LEGACY_MARK) return;
+  let payload: { finance?: SettingsRow | null; records?: RecordRow[] };
+  try {
+    const res = await fetch("/legacy-import.json");
+    if (!res.ok) return;
+    payload = (await res.json()) as { finance?: SettingsRow | null; records?: RecordRow[] };
+  } catch {
+    return;
+  }
+  const rows = payload.records ?? [];
+  if (await cloudLive()) {
+    await apiJson("/api/crm/merge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records: rows, finance: payload.finance }),
+    });
+    if (payload.finance) {
+      await apiJson("/api/crm/settings/finance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_balance: payload.finance.base_balance }),
+      });
+    }
+  }
+  if (rows.length) await db.records.bulkPut(rows);
+  if (payload.finance) await db.settings.put({ ...payload.finance, id: "finance" });
+  await db.settings.put({
+    id: "legacy-import",
+    base_balance: payload.finance?.base_balance ?? 0,
+    updated_at: LEGACY_MARK,
+  });
 }
 
 export async function listRecords(module: string) {

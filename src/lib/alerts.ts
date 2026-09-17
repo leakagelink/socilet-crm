@@ -98,7 +98,7 @@ export async function collectAlerts(): Promise<AlertItem[]> {
     fromModule("projects", "/projects", (row) => {
       const status = str(row.data.status);
       const start = ts(row.data.start_date);
-      if (status === "done" || status === "paused" || start == null) return null;
+      if (status === "done" || status === "completed" || status === "paused" || start == null) return null;
       if (start > today + 86400000) return null;
       if (status !== "planned" && status !== "active") return null;
       const starting = start >= today && start < today + 86400000;

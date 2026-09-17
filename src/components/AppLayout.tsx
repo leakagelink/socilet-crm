@@ -22,6 +22,11 @@ import {
   Clock,
   KeyRound,
   Ban,
+  PlusSquare,
+  Store,
+  MessageSquare,
+  Video,
+  Folder,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -38,12 +43,14 @@ const ICONS: Record<string, LucideIcon> = {
   "/projects": FolderKanban,
   "/tasks": CheckSquare,
   "/quotations": FileText,
+  "/project-addons": PlusSquare,
   "/ai-analyzer": Sparkles,
   "/invoices": Receipt,
   "/digital-products": Package,
   "/recurring-earnings": Repeat,
   "/other-income": Wallet,
   "/cosmofeed": Radio,
+  "/cosmofeed-products": Store,
   "/spends": TrendingDown,
   "/investments": LineChart,
   "/balance-tracker": Scale,
@@ -53,11 +60,14 @@ const ICONS: Record<string, LucideIcon> = {
   "/notifications": Bell,
   "/reminders": Clock,
   "/service-credentials": KeyRound,
+  "/contact-messages": MessageSquare,
+  "/workspaces": Folder,
+  "/meetings": Video,
   "/blocked-messages": Ban,
 };
 
 const groups = [
-  { name: "Work", paths: ["/", "/projects", "/tasks", "/quotations", "/ai-analyzer"] },
+  { name: "Work", paths: ["/", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
   {
     name: "Finance",
     paths: [
@@ -66,6 +76,7 @@ const groups = [
       "/recurring-earnings",
       "/other-income",
       "/cosmofeed",
+      "/cosmofeed-products",
       "/spends",
       "/investments",
       "/balance-tracker",
@@ -75,7 +86,7 @@ const groups = [
   },
   {
     name: "Ops",
-    paths: ["/emails", "/notifications", "/reminders", "/service-credentials", "/blocked-messages"],
+    paths: ["/emails", "/notifications", "/reminders", "/service-credentials", "/contact-messages", "/blocked-messages"],
   },
 ];
 
