@@ -29,7 +29,7 @@ export function NotificationBell() {
   });
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root modal={false} open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
         <Button variant="outline" size="icon" className="relative" aria-label="Notifications">
           <Bell className="h-4 w-4" />
@@ -41,8 +41,11 @@ export function NotificationBell() {
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-line bg-panel shadow-2xl sm:inset-auto sm:right-3 sm:top-3 sm:max-h-[min(32rem,calc(100dvh-1.5rem))] sm:w-[min(24rem,calc(100vw-1.5rem))] sm:rounded-2xl">
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" onClick={() => setOpen(false)} />
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="sheet-scroll fixed inset-x-3 top-[10dvh] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 overflow-y-scroll rounded-2xl border border-line bg-panel shadow-2xl sm:inset-auto sm:right-3 sm:top-3 sm:bottom-auto sm:max-h-[min(32rem,calc(100dvh-1.5rem))] sm:w-[min(24rem,calc(100vw-1.5rem))]"
+        >
           <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
             <Dialog.Title className="font-semibold">Notifications</Dialog.Title>
             <Button variant="ghost" size="sm" disabled={!unread.length} onClick={() => readAll.mutate()}>

@@ -20,7 +20,7 @@ export function LoginPage() {
   const form = useForm({ resolver: zodResolver(schema), defaultValues: { email: "", password: "" } });
 
   return (
-    <div className="relative grid min-h-dvh overflow-x-hidden overflow-y-auto lg:grid-cols-2">
+    <div className="relative grid min-h-full lg:min-h-dvh lg:grid-cols-2">
       <div className="relative hidden items-end p-10 lg:flex">
         <div className="orb pointer-events-none absolute -left-16 top-10 h-72 w-72 rounded-full bg-gold/20 blur-3xl" />
         <div className="orb pointer-events-none absolute bottom-10 right-10 h-80 w-80 rounded-full bg-mint/15 blur-3xl" />

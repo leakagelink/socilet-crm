@@ -13,21 +13,28 @@
 
 * { box-sizing: border-box; }
 
-html, body, #root { min-height: 100%; min-height: 100dvh; }
-
 html {
-  overflow-x: hidden;
-  overflow-y: auto;
   -webkit-text-size-adjust: 100%;
 }
 
-body {
+html, body {
   margin: 0;
+  min-height: 100%;
+}
+
+body {
   font-family: var(--font-sans);
   color: var(--color-paper);
   background: #060914;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+}
+
+/* Radix RemoveScroll freezes WebViews by setting pointer-events:none on body. */
+body[data-scroll-locked],
+html body[data-scroll-locked] {
+  overflow: auto !important;
+  pointer-events: auto !important;
+  padding-right: 0 !important;
 }
 
 body::before {
@@ -56,7 +63,7 @@ body::after {
 #root {
   position: relative;
   z-index: 1;
-  min-height: 100dvh;
+  min-height: 100%;
 }
 
 h1, h2, .font-display { font-family: var(--font-display); }
@@ -153,10 +160,15 @@ input, textarea, select, button { font: inherit; }
   mask-image: radial-gradient(ellipse at center, black 35%, transparent 75%);
 }
 
-.touch-scroll {
-  overflow-y: auto;
-  overscroll-behavior: contain;
+.sheet-scroll {
   -webkit-overflow-scrolling: touch;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+}
+
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
 }
 
 .kanban-col { min-height: 160px; }

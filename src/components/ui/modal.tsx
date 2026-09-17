@@ -15,14 +15,18 @@ export function Modal({
   children: ReactNode;
 }) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root modal={false} open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm" />
+        <Dialog.Overlay
+          className="fixed inset-0 z-50 bg-black/65"
+          onClick={() => onOpenChange(false)}
+        />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-white/12 bg-panel p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:inset-auto sm:left-1/2 sm:top-1/2 sm:max-h-[min(88dvh,44rem)] sm:w-[min(560px,calc(100%-1.5rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-5"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="sheet-scroll fixed inset-x-3 top-[7dvh] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 overflow-y-scroll rounded-2xl border border-white/12 bg-panel p-4 shadow-2xl sm:inset-x-auto sm:left-1/2 sm:top-[6vh] sm:bottom-auto sm:h-auto sm:max-h-[86vh] sm:w-[min(560px,calc(100%-1.5rem))] sm:-translate-x-1/2 sm:p-5"
         >
-          <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
             <Dialog.Close asChild>
               <Button variant="ghost" size="icon" aria-label="Close">
@@ -30,9 +34,7 @@ export function Modal({
               </Button>
             </Dialog.Close>
           </div>
-          <div className="touch-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {children}
-          </div>
+          {children}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
