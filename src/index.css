@@ -39,3 +39,10 @@ input, textarea, select, button { font: inherit; }
 .kanban-col {
   min-height: 280px;
 }
+
+.mailbox-scroll {
+  scrollbar-width: none;
+}
+.mailbox-scroll::-webkit-scrollbar {
+  display: none;
+}

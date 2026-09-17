@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeft, Inbox, MailPlus, PenLine, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { insertRecord } from "@/lib/db";
+import { cn } from "@/lib/utils";
 
 type Mailbox = {
   id: string;
@@ -38,6 +40,14 @@ const boxSchema = z.object({
   apiKey: z.string().trim().min(8).refine((v) => v.startsWith("re_"), "Resend keys start with re_"),
 });
 
+const ACCENTS = ["#e8c36a", "#7ddec9", "#93c5fd", "#f0abfc", "#fdba74", "#a5b4fc"];
+
+function accentFor(id: string) {
+  let n = 0;
+  for (const c of id) n = (n + c.charCodeAt(0)) % ACCENTS.length;
+  return ACCENTS[n];
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
   const raw = await res.text();
@@ -63,11 +73,21 @@ function q(mailboxId: string, path: string) {
   return u.pathname + u.search;
 }
 
+function when(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
+  return d.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 export function EmailsPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"inbox" | "sent">("inbox");
   const [openId, setOpenId] = useState<string | null>(null);
   const [mailboxId, setMailboxId] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [pane, setPane] = useState<"list" | "read">("list");
 
   const boxes = useQuery({
     queryKey: ["email-mailboxes"],
@@ -77,6 +97,7 @@ export function EmailsPage() {
   const mailboxes = boxes.data?.data ?? [];
   const activeId = mailboxId || mailboxes[0]?.id || "";
   const active = mailboxes.find((m) => m.id === activeId) ?? mailboxes[0];
+  const accent = accentFor(active?.id || "x");
 
   const inbox = useQuery({
     queryKey: ["email-inbox", activeId],
@@ -128,6 +149,7 @@ export function EmailsPage() {
     },
     onSuccess: () => {
       form.reset();
+      setComposing(false);
       void qc.invalidateQueries({ queryKey: ["email-sent", activeId] });
     },
   });
@@ -139,14 +161,14 @@ export function EmailsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(v),
       });
-      if (!data.mailbox?.id) {
-        throw new Error("Mailbox connect fail: server ne mailbox id nahi bheji.");
-      }
+      if (!data.mailbox?.id) throw new Error("Mailbox connect fail: server ne mailbox id nahi bheji.");
       return data.mailbox;
     },
     onSuccess: (mailbox) => {
       addForm.reset();
+      setAdding(false);
       setMailboxId(mailbox.id);
+      setOpenId(null);
       void qc.invalidateQueries({ queryKey: ["email-mailboxes"] });
     },
   });
@@ -155,166 +177,248 @@ export function EmailsPage() {
     mutationFn: (id: string) => api(`/api/email/mailboxes/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       setMailboxId("");
+      setOpenId(null);
       void qc.invalidateQueries({ queryKey: ["email-mailboxes"] });
     },
   });
 
   const rows = tab === "inbox" ? inbox.data?.data ?? [] : sent.data?.data ?? [];
   const boxQ = tab === "inbox" ? inbox : sent;
+  const preview = useMemo(() => {
+    const t = detail.data?.text?.trim();
+    if (t) return t;
+    return detail.data?.html?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "";
+  }, [detail.data]);
+
+  function pickBox(id: string) {
+    setMailboxId(id);
+    setOpenId(null);
+    setComposing(false);
+    setPane("list");
+  }
+
+  function openMail(id: string) {
+    setOpenId(id);
+    setComposing(false);
+    setPane("read");
+  }
 
   return (
-    <div className="grid gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Email setup</h1>
-        <p className="text-sm text-paper/60">
-          Yahan mailbox connect hota hai. Label + From + Resend API → Add &amp; connect. Niche usi box ka inbox/sent/compose hai.
-        </p>
+    <div className="-mx-1 flex min-h-[calc(100dvh-6.5rem)] flex-col gap-3 md:-mx-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-gold/80">Mail</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Inboxes</h1>
+          <p className="mt-0.5 max-w-xl text-sm text-paper/55">
+            Har mailbox alag domain + Resend key. Switch karo — list, send, reply usi box ke rehte hain.
+          </p>
+        </div>
+        <div className="flex w-full gap-2 sm:w-auto">
+          <Button className="flex-1 sm:flex-none" variant="outline" onClick={() => setAdding((v) => !v)}>
+            <MailPlus className="h-4 w-4" />
+            {adding ? "Close setup" : "Add mailbox"}
+          </Button>
+          <Button
+            className="flex-1 sm:flex-none"
+            disabled={!activeId}
+            onClick={() => {
+              setComposing(true);
+              setPane("read");
+            }}
+          >
+            <PenLine className="h-4 w-4" />
+            Compose
+          </Button>
+        </div>
       </div>
 
-      {boxes.isError ? <Card className="text-red-300">Email API is not running on this host (`node server.mjs` / `npm run dev`).</Card> : null}
+      {boxes.isError ? (
+        <Card className="border-red-900/50 text-sm text-red-300">{(boxes.error as Error).message}</Card>
+      ) : null}
 
-      <Card id="setup" className="grid gap-4">
-        <h2 className="text-lg font-semibold text-gold">Connect mailbox</h2>
-        <p className="text-sm text-paper/60">
-          Har domain ke liye alag Resend API. Connect ke baad inbox aur send alag rehte hain.
-        </p>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="grid min-w-56 flex-1 gap-1">
-            <Label htmlFor="mailbox">Active mailbox</Label>
-            <select
-              id="mailbox"
-              className="h-10 rounded-lg border border-line bg-ink/60 px-3"
-              value={activeId}
-              onChange={(e) => {
-                setMailboxId(e.target.value);
-                setOpenId(null);
-              }}
+      <div className="mailbox-scroll flex gap-2 overflow-x-auto pb-1">
+        {mailboxes.map((m) => {
+          const on = m.id === activeId;
+          const c = accentFor(m.id);
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => pickBox(m.id)}
+              className={cn(
+                "min-w-[11.5rem] shrink-0 rounded-2xl border px-3 py-2.5 text-left transition",
+                on ? "border-transparent bg-panel shadow-lg" : "border-line/80 bg-ink/40 hover:border-gold/30",
+              )}
+              style={on ? { boxShadow: `inset 3px 0 0 ${c}` } : undefined}
             >
-              {mailboxes.length === 0 ? <option value="">No mailbox yet</option> : null}
-              {mailboxes.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label} · {m.domain} {m.connected ? "" : "(disconnected)"}
-                </option>
-              ))}
-            </select>
+              <div className="truncate text-sm font-semibold">{m.label}</div>
+              <div className="truncate text-[11px] text-paper/45">{m.domain}</div>
+            </button>
+          );
+        })}
+        {mailboxes.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-line px-4 py-3 text-sm text-paper/50">
+            Koi mailbox nahi. Add mailbox se pehla box connect karo.
           </div>
-          {active ? (
-            <div className="text-xs text-paper/50">
-              From {active.from} · key {active.keyHint}
+        ) : null}
+      </div>
+
+      {adding ? (
+        <Card className="grid gap-3">
+          <div>
+            <h2 className="font-semibold text-gold">Connect a mailbox</h2>
+            <p className="text-xs text-paper/50">Resend verified domain + API key. Keys server par rehti hain, GitHub par nahi.</p>
+          </div>
+          <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={addForm.handleSubmit((v) => addBox.mutate(v))}>
+            <div className="grid gap-1">
+              <Label htmlFor="box-label">Name</Label>
+              <Input id="box-label" placeholder="Socilet" {...addForm.register("label")} />
             </div>
-          ) : null}
-          {active && active.id !== "env-default" ? (
-            <Button variant="outline" size="sm" onClick={() => removeBox.mutate(active.id)}>
-              Remove mailbox
+            <div className="grid gap-1 sm:col-span-2">
+              <Label htmlFor="box-from">From</Label>
+              <Input id="box-from" placeholder="Socilet &lt;hello@socilet.in&gt;" {...addForm.register("from")} />
+            </div>
+            <div className="grid gap-1">
+              <Label htmlFor="box-key">Resend API</Label>
+              <Input id="box-key" type="password" autoComplete="off" placeholder="re_…" {...addForm.register("apiKey")} />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-4">
+              <Button type="submit" disabled={addBox.isPending}>
+                {addBox.isPending ? "Connecting…" : "Connect mailbox"}
+              </Button>
+            </div>
+          </form>
+          {addBox.isError ? <p className="text-sm text-red-400">{addBox.error.message}</p> : null}
+        </Card>
+      ) : null}
+
+      {active ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line/70 bg-panel/50 px-3 py-2 text-xs text-paper/55">
+          <span>
+            Active <span className="font-medium text-paper">{active.label}</span>
+            <span className="mx-2 text-line">·</span>
+            {active.from}
+          </span>
+          {active.id !== "env-default" ? (
+            <Button variant="ghost" size="sm" onClick={() => removeBox.mutate(active.id)}>
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
             </Button>
           ) : null}
         </div>
+      ) : null}
 
-        <form className="grid gap-3 md:grid-cols-4 md:items-end" onSubmit={addForm.handleSubmit((v) => addBox.mutate(v))}>
-          <div className="grid gap-1">
-            <Label htmlFor="box-label">New mailbox name</Label>
-            <Input id="box-label" placeholder="Proofvault support" {...addForm.register("label")} />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="box-from">From (that domain)</Label>
-            <Input id="box-from" placeholder="Support &lt;hello@proofvault.space&gt;" {...addForm.register("from")} />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="box-key">Resend API key</Label>
-            <Input id="box-key" type="password" autoComplete="off" placeholder="re_…" {...addForm.register("apiKey")} />
-          </div>
-          <Button type="submit" disabled={addBox.isPending}>
-            {addBox.isPending ? "Connecting…" : "Add & connect"}
-          </Button>
-        </form>
-        {addBox.isError ? <p className="text-sm text-red-400">{addBox.error.message}</p> : null}
-        {addBox.isSuccess ? <p className="text-sm text-mint">Mailbox connected. Inbox/sent is separate from other boxes.</p> : null}
-      </Card>
-
-      <div className="flex gap-2">
-        <Button variant={tab === "inbox" ? "default" : "outline"} onClick={() => { setTab("inbox"); setOpenId(null); }}>
-          Inbox
-        </Button>
-        <Button variant={tab === "sent" ? "default" : "outline"} onClick={() => { setTab("sent"); setOpenId(null); }}>
-          Sent
-        </Button>
-      </div>
-
-      {!activeId ? <Card>Pehle mailbox add karo: label, from@domain, Resend API. Key server par save hoti hai, GitHub par nahi.</Card> : null}
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <h2 className="mb-3 text-sm font-medium text-gold">Compose / Reply · {active?.label ?? "—"}</h2>
-          <form className="grid gap-3" onSubmit={form.handleSubmit((v) => send.mutate(v))}>
-            <div className="grid gap-1">
-              <Label htmlFor="to">To</Label>
-              <Input id="to" {...form.register("to")} />
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="subject">Subject</Label>
-              <Input id="subject" {...form.register("subject")} />
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="body">Message</Label>
-              <Textarea id="body" rows={8} {...form.register("body")} />
-            </div>
-            {send.isError ? <p className="text-sm text-red-400">{send.error.message}</p> : null}
-            {send.isSuccess ? <p className="text-sm text-mint">Sent from {active?.from}</p> : null}
-            <Button type="submit" disabled={send.isPending || !activeId}>
-              {send.isPending ? "Sending…" : "Send with this mailbox"}
+      <div
+        className="grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-line bg-panel/60 lg:grid-cols-[minmax(17rem,22rem)_1fr]"
+        style={{ borderTopColor: accent }}
+      >
+        <section
+          className={cn(
+            "flex min-h-[22rem] flex-col border-b border-line lg:border-b-0 lg:border-r",
+            pane === "read" ? "hidden lg:flex" : "flex",
+          )}
+        >
+          <div className="flex gap-1 border-b border-line p-2">
+            <Button size="sm" variant={tab === "inbox" ? "default" : "ghost"} className="flex-1" onClick={() => { setTab("inbox"); setOpenId(null); }}>
+              <Inbox className="h-3.5 w-3.5" /> Inbox
             </Button>
-          </form>
-        </Card>
-
-        <div className="grid gap-3">
-          <Card>
-            {boxQ.isLoading ? <p>Loading…</p> : null}
-            {boxQ.isError ? <p className="text-red-300">{(boxQ.error as Error).message}</p> : null}
-            {boxQ.data && rows.length === 0 ? <p className="text-paper/60">No messages in {tab} for this mailbox.</p> : null}
-            <div className="grid gap-2">
-              {rows.map((row) => (
+            <Button size="sm" variant={tab === "sent" ? "default" : "ghost"} className="flex-1" onClick={() => { setTab("sent"); setOpenId(null); }}>
+              <Send className="h-3.5 w-3.5" /> Sent
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {boxQ.isLoading ? <p className="p-4 text-sm text-paper/50">Loading {tab}…</p> : null}
+            {boxQ.isError ? <p className="p-4 text-sm text-red-300">{(boxQ.error as Error).message}</p> : null}
+            {boxQ.data && rows.length === 0 ? (
+              <p className="p-6 text-sm text-paper/45">Is mailbox ke {tab} mein kuch nahi.</p>
+            ) : null}
+            {rows.map((row) => {
+              const selected = row.id === openId;
+              return (
                 <button
                   key={row.id}
                   type="button"
-                  className="rounded-lg border border-line px-3 py-2 text-left text-sm hover:bg-ink/40"
-                  onClick={() => setOpenId(row.id)}
+                  onClick={() => openMail(row.id)}
+                  className={cn(
+                    "w-full border-b border-line/60 px-3 py-3 text-left",
+                    selected ? "bg-gold/10" : "hover:bg-ink/50",
+                  )}
                 >
-                  <div className="font-medium">{row.subject || "(no subject)"}</div>
-                  <div className="text-xs text-paper/50">
-                    {tab === "inbox" ? row.from : addr(row.to)} · {row.created_at?.slice(0, 16)?.replace("T", " ")}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] font-medium">{row.subject || "(no subject)"}</div>
+                      <div className="truncate text-[11px] text-paper/45">{tab === "inbox" ? row.from : addr(row.to)}</div>
+                    </div>
+                    <time className="shrink-0 text-[10px] text-paper/35">{when(row.created_at)}</time>
                   </div>
                 </button>
-              ))}
-            </div>
-          </Card>
-          {openId ? (
-            <Card>
-              {detail.isLoading ? <p>Loading message…</p> : null}
-              {detail.isError ? <p className="text-red-300">{(detail.error as Error).message}</p> : null}
+              );
+            })}
+          </div>
+        </section>
+
+        <section className={cn("flex min-h-[24rem] flex-col bg-ink/25", pane === "list" ? "hidden lg:flex" : "flex")}>
+          <div className="flex items-center gap-2 border-b border-line px-2 py-2 lg:hidden">
+            <Button variant="ghost" size="icon" aria-label="Back to list" onClick={() => setPane("list")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium">{composing ? "Compose" : "Message"}</span>
+          </div>
+
+          {composing ? (
+            <form className="grid flex-1 gap-3 overflow-y-auto p-4" onSubmit={form.handleSubmit((v) => send.mutate(v))}>
+              <p className="text-xs text-paper/45">Sending as {active?.from}</p>
+              <div className="grid gap-1">
+                <Label htmlFor="to">To</Label>
+                <Input id="to" {...form.register("to")} />
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="subject">Subject</Label>
+                <Input id="subject" {...form.register("subject")} />
+              </div>
+              <div className="grid flex-1 gap-1">
+                <Label htmlFor="body">Message</Label>
+                <Textarea id="body" className="min-h-40" {...form.register("body")} />
+              </div>
+              {send.isError ? <p className="text-sm text-red-400">{send.error.message}</p> : null}
+              {send.isSuccess ? <p className="text-sm text-mint">Sent</p> : null}
+              <Button type="submit" disabled={send.isPending || !activeId}>
+                {send.isPending ? "Sending…" : "Send"}
+              </Button>
+            </form>
+          ) : openId ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {detail.isLoading ? <p className="text-sm text-paper/50">Opening…</p> : null}
+              {detail.isError ? <p className="text-sm text-red-300">{(detail.error as Error).message}</p> : null}
               {detail.data ? (
-                <div className="grid gap-2 text-sm">
-                  <div className="font-medium">{detail.data.subject}</div>
-                  <div className="text-xs text-paper/50">
-                    From {detail.data.from} → {addr(detail.data.to)}
-                  </div>
-                  <div className="whitespace-pre-wrap rounded-lg border border-line p-3">
-                    {detail.data.text || detail.data.html?.replace(/<[^>]+>/g, " ") || ""}
+                <article className="grid gap-3">
+                  <h2 className="text-lg font-semibold leading-snug">{detail.data.subject}</h2>
+                  <p className="text-xs text-paper/50">
+                    {detail.data.from} → {addr(detail.data.to)}
+                  </p>
+                  <div className="whitespace-pre-wrap rounded-xl bg-panel/80 p-4 text-sm leading-relaxed text-paper/90">
+                    {preview || "No body text."}
                   </div>
                   <Button
                     variant="outline"
-                    size="sm"
+                    className="w-full sm:w-auto"
                     onClick={() => {
                       form.setValue("to", detail.data?.from || "");
                       form.setValue("subject", `Re: ${detail.data?.subject || ""}`.replace(/^Re: Re: /, "Re: "));
+                      setComposing(true);
                     }}
                   >
-                    Reply from this mailbox
+                    Reply from {active?.label}
                   </Button>
-                </div>
+                </article>
               ) : null}
-            </Card>
-          ) : null}
-        </div>
+            </div>
+          ) : (
+            <div className="m-auto max-w-sm p-8 text-center text-sm text-paper/40">
+              {activeId ? "Inbox se ek mail kholo, ya Compose dabao." : "Pehle mailbox connect karo."}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
