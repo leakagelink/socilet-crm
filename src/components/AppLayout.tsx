@@ -161,7 +161,7 @@ export function AppLayout() {
     void restoreMailboxesToServer();
   }, []);
   return (
-    <div className="min-h-full lg:grid lg:grid-cols-[248px_1fr]">
+    <div className="min-h-full min-w-0 lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="glass hidden border-r border-white/8 p-4 lg:sticky lg:top-0 lg:block lg:h-screen lg:overflow-y-auto">
         <div className="mb-7 flex items-center gap-3 px-1">
           <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-gold to-[#c9a24a] font-display text-lg text-ink shadow-[0_8px_24px_rgba(232,195,106,0.35)]">
@@ -174,7 +174,7 @@ export function AppLayout() {
         </div>
         <NavList />
       </aside>
-      <div className="flex min-h-full flex-col">
+      <div className="flex min-h-full min-w-0 flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/8 bg-panel px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
           <div className="flex items-center gap-3">
             <Button className="lg:hidden" variant="outline" size="icon" aria-label="Open menu" onClick={() => setOpen(true)}>
@@ -211,7 +211,7 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        <main key={loc.pathname} className="page-enter flex-1 p-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-4 md:p-8">
+        <main key={loc.pathname} className="page-enter min-w-0 flex-1 p-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-4 md:p-8">
           <Outlet />
         </main>
       </div>

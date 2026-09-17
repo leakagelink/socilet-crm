@@ -222,16 +222,16 @@ export function EmailsPage() {
   }
 
   return (
-    <div className="-mx-1 flex min-h-0 flex-col gap-3 md:-mx-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.2em] text-gold/80">Mail</p>
           <h1 className="text-2xl font-semibold tracking-tight">Inboxes</h1>
-          <p className="mt-0.5 max-w-xl text-sm text-paper/55">
+          <p className="mt-0.5 text-sm text-paper/55">
             Har mailbox alag domain + Resend key. Switch karo — list, send, reply usi box ke rehte hain.
           </p>
         </div>
-        <div className="flex w-full gap-2 sm:w-auto">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
           <Button className="flex-1 sm:flex-none" variant="outline" onClick={() => setAdding((v) => !v)}>
             <MailPlus className="h-4 w-4" />
             {adding ? "Close setup" : "Add mailbox"}
@@ -247,7 +247,7 @@ export function EmailsPage() {
         <Card className="border-red-900/50 text-sm text-red-300">{(boxes.error as Error).message}</Card>
       ) : null}
 
-      <div className="mailbox-scroll flex gap-2 overflow-x-auto pb-1">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {mailboxes.map((m) => {
           const on = m.id === activeId;
           const c = accentFor(m.id);
@@ -257,7 +257,7 @@ export function EmailsPage() {
               type="button"
               onClick={() => pickBox(m.id)}
               className={cn(
-                "min-w-[11.5rem] shrink-0 rounded-2xl border px-3 py-2.5 text-left transition",
+                "min-w-0 rounded-2xl border px-3 py-2.5 text-left transition",
                 on ? "border-transparent bg-panel shadow-lg" : "border-line/80 bg-ink/40 hover:border-gold/30",
               )}
               style={on ? { boxShadow: `inset 3px 0 0 ${c}` } : undefined}
@@ -304,11 +304,11 @@ export function EmailsPage() {
       ) : null}
 
       {active ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line/70 bg-panel/50 px-3 py-2 text-xs text-paper/55">
-          <span>
+        <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-line/70 bg-panel/50 px-3 py-2 text-xs text-paper/55 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <span className="min-w-0 break-words">
             Active <span className="font-medium text-paper">{active.label}</span>
-            <span className="mx-2 text-line">·</span>
-            {active.from}
+            <span className="mx-1 text-line">·</span>
+            <span className="break-all">{active.from}</span>
           </span>
           {active.id !== "env-default" ? (
             <Button variant="ghost" size="sm" onClick={() => removeBox.mutate(active.id)}>
@@ -320,27 +320,27 @@ export function EmailsPage() {
       ) : null}
 
       <div
-        className="grid rounded-2xl border border-line bg-panel/60 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:grid-cols-[minmax(17rem,22rem)_1fr]"
+        className="grid min-w-0 overflow-hidden rounded-2xl border border-line bg-panel/60 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
         style={{ borderTopColor: accent }}
       >
         <section
           className={cn(
-            "flex min-h-[22rem] flex-col border-b border-line lg:border-b-0 lg:border-r",
+            "flex min-h-0 min-w-0 flex-col border-b border-line lg:min-h-[28rem] lg:border-b-0 lg:border-r",
             pane === "read" ? "hidden lg:flex" : "flex",
           )}
         >
-          <div className="flex gap-1 border-b border-line p-2">
-            <Button size="sm" variant={tab === "inbox" ? "default" : "ghost"} className="flex-1" onClick={() => { setTab("inbox"); setOpenId(null); }}>
-              <Inbox className="h-3.5 w-3.5" /> Inbox
+          <div className="grid grid-cols-3 gap-1 border-b border-line p-2">
+            <Button size="sm" variant={tab === "inbox" ? "default" : "ghost"} className="w-full min-w-0 px-1" onClick={() => { setTab("inbox"); setOpenId(null); }}>
+              <Inbox className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Inbox</span>
             </Button>
-            <Button size="sm" variant={tab === "sent" ? "default" : "ghost"} className="flex-1" onClick={() => { setTab("sent"); setOpenId(null); }}>
-              <Send className="h-3.5 w-3.5" /> Sent
+            <Button size="sm" variant={tab === "sent" ? "default" : "ghost"} className="w-full min-w-0 px-1" onClick={() => { setTab("sent"); setOpenId(null); }}>
+              <Send className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Sent</span>
             </Button>
-            <Button size="sm" variant="outline" disabled={!activeId} onClick={startCompose}>
-              <PenLine className="h-3.5 w-3.5" /> New
+            <Button size="sm" variant="outline" className="w-full min-w-0 px-1" disabled={!activeId} onClick={startCompose}>
+              <PenLine className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">New</span>
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             {boxQ.isLoading ? <p className="p-4 text-sm text-paper/50">Loading {tab}…</p> : null}
             {boxQ.isError ? <p className="p-4 text-sm text-red-300">{(boxQ.error as Error).message}</p> : null}
             {boxQ.data && rows.length === 0 ? (
@@ -354,16 +354,16 @@ export function EmailsPage() {
                   type="button"
                   onClick={() => openMail(row.id)}
                   className={cn(
-                    "w-full border-b border-line/60 px-3 py-3 text-left",
+                    "w-full min-w-0 border-b border-line/60 px-3 py-3 text-left",
                     selected ? "bg-gold/10" : "hover:bg-ink/50",
                   )}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] font-medium">{row.subject || "(no subject)"}</div>
                       <div className="truncate text-[11px] text-paper/45">{tab === "inbox" ? row.from : addr(row.to)}</div>
                     </div>
-                    <time className="shrink-0 text-[10px] text-paper/35">{when(row.created_at)}</time>
+                    <time className="shrink-0 whitespace-nowrap text-[10px] text-paper/35">{when(row.created_at)}</time>
                   </div>
                 </button>
               );
@@ -371,17 +371,17 @@ export function EmailsPage() {
           </div>
         </section>
 
-        <section className={cn("flex min-h-[24rem] flex-col bg-ink/25", pane === "list" ? "hidden lg:flex" : "flex")}>
+        <section className={cn("flex min-h-0 min-w-0 flex-col bg-ink/25 lg:min-h-[28rem]", pane === "list" ? "hidden lg:flex" : "flex")}>
           <div className="flex items-center gap-2 border-b border-line px-2 py-2 lg:hidden">
             <Button variant="ghost" size="icon" aria-label="Back to list" onClick={() => setPane("list")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium">{composing ? "Compose" : "Message"}</span>
+            <span className="min-w-0 truncate text-sm font-medium">{composing ? "Compose" : "Message"}</span>
           </div>
 
           {composing ? (
-            <form className="grid flex-1 gap-3 overflow-y-auto p-4" onSubmit={form.handleSubmit((v) => send.mutate(v))}>
-              <p className="text-xs text-paper/45">Sending as {active?.from}</p>
+            <form className="grid min-w-0 flex-1 gap-3 overflow-y-auto p-3 sm:p-4" onSubmit={form.handleSubmit((v) => send.mutate(v))}>
+              <p className="break-all text-xs text-paper/45">Sending as {active?.from}</p>
               <div className="grid gap-1">
                 <Label htmlFor="to">To</Label>
                 <Input id="to" placeholder="name@example.com" {...form.register("to")} />
@@ -401,16 +401,18 @@ export function EmailsPage() {
               </Button>
             </form>
           ) : openId ? (
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4">
               {detail.isLoading ? <p className="text-sm text-paper/50">Opening…</p> : null}
-              {detail.isError ? <p className="text-sm text-red-300">{(detail.error as Error).message}</p> : null}
+              {detail.isError ? <p className="break-words text-sm text-red-300">{(detail.error as Error).message}</p> : null}
               {detail.data ? (
-                <article className="grid gap-3">
-                  <h2 className="text-lg font-semibold leading-snug">{detail.data.subject}</h2>
-                  <p className="text-xs text-paper/50">
+                <article className="grid min-w-0 gap-3">
+                  <h2 className="break-words text-lg font-semibold leading-snug">{detail.data.subject}</h2>
+                  <p className="break-all text-xs text-paper/50">
                     {detail.data.from} → {addr(detail.data.to)}
                   </p>
-                  <div className="whitespace-pre-wrap rounded-xl bg-panel/80 p-4 text-sm leading-relaxed text-paper/90">
+                  <div className="whitespace-pre-wrap break-words rounded-xl bg-panel/80 p-4 text-sm leading-relaxed text-paper/90 [overflow-wrap:anywhere]">
+                    {preview || "No body text."}
+                  </div>
                     {preview || "No body text."}
                   </div>
                   <Button
@@ -445,7 +447,7 @@ export function EmailsPage() {
         <button
           type="button"
           onClick={startCompose}
-          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
+          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-3 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
           aria-label="Compose mail"
         >
           <PenLine className="h-6 w-6" />
