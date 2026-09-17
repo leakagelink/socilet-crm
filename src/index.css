@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #0c1220;
+  --color-panel: #121a2b;
+  --color-line: #243049;
+  --color-gold: #e8c36a;
+  --color-mint: #7ddec9;
+  --color-paper: #f4efe4;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: radial-gradient(1200px 600px at 10% -10%, #1b2a44 0%, var(--color-ink) 45%);
+  color: var(--color-paper);
+}
+
+#root { min-height: 100vh; }
+
+input, textarea, select, button { font: inherit; }
+
+@keyframes count-glow {
+  from { text-shadow: 0 0 0 transparent; }
+  to { text-shadow: 0 0 18px rgba(232, 195, 106, 0.35); }
+}
+
+.anim-inr {
+  animation: count-glow 1.2s ease-out;
+}
+
+.kanban-col {
+  min-height: 280px;
+}
