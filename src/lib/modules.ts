@@ -208,9 +208,9 @@ export const MODULES: ModuleDef[] = [
   }),
   def({
     id: "emails",
-    title: "Emails",
+    title: "Email setup",
     path: "/emails",
-    description: "Outbound log",
+    description: "Multiple Resend mailboxes — separate inbox/sent per domain",
     fields: [
       { name: "to_addr", label: "To", kind: "text" },
       { name: "subject", label: "Subject", kind: "text" },

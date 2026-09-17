@@ -26,6 +26,14 @@ Roles live in `user_roles`, never on `profiles`.
 
 The app runs with **zero** `VITE_*` keys (Dexie IndexedDB). Optional Supabase: copy `.env.example` to `.env` and set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`.
 
+### Resend (socilet.in send + inbox)
+
+Har mailbox alag: CRM **Emails** → name, `From` (jaise `hello@dusra-domain.com`), Resend API `re_…` → **Add & connect**. Inbox/sent/send usi box ke. Webhook: `https://crm.proofvault.space/api/email/inbound/<mailboxId>`. Keys `data/mailboxes.json` (gitignored) par, GitHub par nahi.
+
+Hostinger Web App: add the same env vars in the panel (do not commit `.env`). After `npm run build`, run `node server.mjs` so `/api/email` exists in production. In Resend: receiving/MX for `socilet.in`, webhook `https://crm.proofvault.space/api/email/inbound` event `email.received`.
+
+Rotate any key that was pasted in chat.
+
 ## Shipping rule
 
 **Local change → `git add` → `git commit` → `git push origin main` → GitHub Action (or Hostinger Git / Vercel / Netlify) publishes `dist/`.**

@@ -4,6 +4,7 @@ dist-ssr
 *.local
 .env
 .env.local
+data
 .DS_Store
 *.tsbuildinfo
 .vscode/*

@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { RequireAuth } from "@/components/RequireAuth";
 import { LoginPage, DeniedPage } from "@/pages/LoginPage";
 import { DashboardPage, BalanceTrackerPage, AnalyticsPage, AiAnalyzerPage } from "@/pages/SpecialPages";
+import { EmailsPage } from "@/pages/EmailsPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { ModuleCrud } from "@/pages/ModuleCrud";
 import { MODULES } from "@/lib/modules";
@@ -32,7 +33,8 @@ export function App() {
           <Route path="/ai-analyzer" element={<AiAnalyzerPage />} />
           <Route path="/balance-tracker" element={<BalanceTrackerPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
-          {MODULES.filter((m) => !["tasks", "ai_analyzer", "balance_tracker", "analytics"].includes(m.id)).map((m) => (
+          <Route path="/emails" element={<EmailsPage />} />
+          {MODULES.filter((m) => !["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails"].includes(m.id)).map((m) => (
             <Route key={m.id} path={m.path} element={<Crud id={m.id} />} />
           ))}
         </Route>
