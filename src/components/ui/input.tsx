@@ -9,7 +9,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"in
     <input
       ref={ref}
       className={cn(
-        "h-10 w-full rounded-xl border border-line bg-ink/70 px-3 text-paper placeholder:text-paper/35 outline-none transition focus:border-gold/50",
+        "h-11 w-full rounded-xl border border-line bg-ink/70 px-3 text-base text-paper placeholder:text-paper/35 outline-none transition focus:border-gold/50 sm:h-10 sm:text-sm",
         className,
       )}
       {...props}
@@ -25,7 +25,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentPro
     <textarea
       ref={ref}
       className={cn(
-        "min-h-24 w-full rounded-xl border border-line bg-ink/70 px-3 py-2 text-paper placeholder:text-paper/35 outline-none transition focus:border-gold/50",
+        "min-h-24 w-full rounded-xl border border-line bg-ink/70 px-3 py-2 text-base text-paper placeholder:text-paper/35 outline-none transition focus:border-gold/50 sm:text-sm",
         className,
       )}
       {...props}

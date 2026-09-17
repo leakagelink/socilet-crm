@@ -222,7 +222,7 @@ export function EmailsPage() {
   }
 
   return (
-    <div className="-mx-1 flex min-h-[calc(100dvh-6.5rem)] flex-col gap-3 md:-mx-0">
+    <div className="-mx-1 flex min-h-0 flex-col gap-3 md:-mx-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-gold/80">Mail</p>
@@ -320,7 +320,7 @@ export function EmailsPage() {
       ) : null}
 
       <div
-        className="grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-line bg-panel/60 lg:grid-cols-[minmax(17rem,22rem)_1fr]"
+        className="grid min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-2xl border border-line bg-panel/60 lg:overflow-hidden lg:grid-cols-[minmax(17rem,22rem)_1fr]"
         style={{ borderTopColor: accent }}
       >
         <section
@@ -445,7 +445,7 @@ export function EmailsPage() {
         <button
           type="button"
           onClick={startCompose}
-          className="fixed bottom-5 right-5 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
+          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
           aria-label="Compose mail"
         >
           <PenLine className="h-6 w-6" />

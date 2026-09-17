@@ -31,7 +31,7 @@ export function RecordForm({
 
   return (
     <form
-      className="grid gap-3"
+      className="grid gap-3 pb-2"
       onSubmit={form.handleSubmit(async (v) => {
         await onSubmit(v);
       })}
@@ -49,7 +49,7 @@ export function RecordForm({
             ) : f.kind === "select" ? (
               <select
                 id={f.name}
-                className="h-10 rounded-lg border border-line bg-ink/60 px-3"
+                className="h-11 w-full rounded-lg border border-line bg-ink/60 px-3 text-base sm:h-10 sm:text-sm"
                 {...form.register(f.name)}
               >
                 {f.options?.map((o) => (
@@ -72,7 +72,7 @@ export function RecordForm({
           </div>
         );
       })}
-      <Button type="submit" disabled={submitting}>
+      <Button type="submit" className="w-full sm:w-auto" disabled={submitting}>
         {submitting ? "Saving…" : "Save"}
       </Button>
     </form>

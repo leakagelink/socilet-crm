@@ -17,9 +17,12 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/65 backdrop-blur-sm" />
-        <Dialog.Content className="page-enter fixed left-1/2 top-1/2 z-50 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/12 bg-panel p-5 shadow-2xl">
-          <div className="mb-4 flex items-center justify-between gap-3">
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm" />
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-white/12 bg-panel p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:inset-auto sm:left-1/2 sm:top-1/2 sm:max-h-[min(88dvh,44rem)] sm:w-[min(560px,calc(100%-1.5rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-5"
+        >
+          <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
             <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
             <Dialog.Close asChild>
               <Button variant="ghost" size="icon" aria-label="Close">
@@ -27,7 +30,9 @@ export function Modal({
               </Button>
             </Dialog.Close>
           </div>
-          {children}
+          <div className="touch-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {children}
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

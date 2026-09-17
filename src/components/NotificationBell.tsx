@@ -42,14 +42,14 @@ export function NotificationBell() {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <Dialog.Content className="fixed right-3 top-3 z-50 flex max-h-[min(32rem,calc(100dvh-1.5rem))] w-[min(24rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl">
+        <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-line bg-panel shadow-2xl sm:inset-auto sm:right-3 sm:top-3 sm:max-h-[min(32rem,calc(100dvh-1.5rem))] sm:w-[min(24rem,calc(100vw-1.5rem))] sm:rounded-2xl">
           <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
             <Dialog.Title className="font-semibold">Notifications</Dialog.Title>
             <Button variant="ghost" size="sm" disabled={!unread.length} onClick={() => readAll.mutate()}>
               Mark all read
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="touch-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {q.isLoading ? <p className="p-4 text-sm text-paper/50">Checking email, tasks, projects, reminders…</p> : null}
             {q.isError ? <p className="p-4 text-sm text-red-300">Could not refresh alerts.</p> : null}
             {!q.isLoading && rows.length === 0 ? (

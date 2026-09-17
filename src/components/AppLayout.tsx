@@ -172,7 +172,7 @@ export function AppLayout() {
         <NavList />
       </aside>
       <div className="flex min-h-screen flex-col">
-        <header className="glass sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
+        <header className="glass sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
           <div className="flex items-center gap-3">
             <Dialog.Root open={open} onOpenChange={setOpen}>
               <Dialog.Trigger asChild>
@@ -182,7 +182,10 @@ export function AppLayout() {
               </Dialog.Trigger>
               <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 bg-black/55 backdrop-blur-sm lg:hidden" />
-                <Dialog.Content className="glass fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto border-r border-line p-4 lg:hidden">
+                <Dialog.Content
+                  aria-describedby={undefined}
+                  className="glass fixed inset-y-0 left-0 z-50 w-[min(18rem,88vw)] overflow-y-auto overscroll-contain border-r border-line p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden"
+                >
                   <Dialog.Title className="mb-4 text-sm text-gold">Modules</Dialog.Title>
                   <NavList onGo={() => setOpen(false)} />
                 </Dialog.Content>
@@ -199,17 +202,18 @@ export function AppLayout() {
             <Button
               variant="outline"
               size="sm"
+              className="shrink-0"
               onClick={async () => {
                 await signOut();
                 navigate("/login");
               }}
             >
               <LogOut className="h-3.5 w-3.5" />
-              Sign out
+              <span className="hidden sm:inline">Sign out</span>
             </Button>
           </div>
         </header>
-        <main key={loc.pathname} className="page-enter flex-1 p-4 md:p-8">
+        <main key={loc.pathname} className="page-enter min-h-0 flex-1 overflow-x-hidden p-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-4 md:p-8">
           <Outlet />
         </main>
       </div>

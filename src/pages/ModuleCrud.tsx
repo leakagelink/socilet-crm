@@ -56,9 +56,10 @@ export function ModuleCrud({
   return (
     <div className="grid gap-4">
       {!hideHeader ? (
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <PageHeader kicker="Module" title={module.title} description={module.description} />
           <Button
+            className="w-full sm:w-auto"
             onClick={() => {
               setEditing(null);
               setOpen(true);
@@ -92,7 +93,44 @@ export function ModuleCrud({
         </Card>
       ) : null}
       {q.data && q.data.length > 0 ? (
-        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-panel/50 shadow-[0_20px_50px_-32px_rgba(0,0,0,0.8)]">
+        <>
+          <div className="grid gap-3 md:hidden">
+            {q.data.map((row) => (
+              <Card key={row.id} className="p-4">
+                <div className="grid gap-2">
+                  {module.fields.slice(0, 8).map((f) => (
+                    <div key={f.name} className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wide text-paper/40">{f.label}</div>
+                      <div className="truncate text-sm">
+                        {f.kind === "number"
+                          ? typeof row.data[f.name] === "number"
+                            ? inr(row.data[f.name] as number)
+                            : cell(row.data[f.name])
+                          : cell(row.data[f.name])}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => {
+                      setEditing(row);
+                      setOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button variant="ghost" size="sm" className="flex-1" onClick={() => remove.mutate(row.id)}>
+                    Delete
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-2xl border border-white/10 bg-panel/50 shadow-[0_20px_50px_-32px_rgba(0,0,0,0.8)] md:block">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-white/[0.04]">
               <tr>
@@ -132,6 +170,7 @@ export function ModuleCrud({
             </tbody>
           </table>
         </div>
+        </>
       ) : null}
       <Modal
         open={open}
