@@ -65,40 +65,15 @@ const SEED = [
   },
 ];
 
-async function seedDemoRecords() {
-  const n = await db.records.count();
-  if (n > 0) return;
-  const rows: RecordRow[] = [
-    rec("projects", { name: "Brand site", client: "Northwind", status: "active", budget: 180000, start_date: "2026-08-01", notes: "Homepage + CRM" }),
-    rec("tasks", { title: "Wire dashboard", status: "in_progress", priority: "high", assignee: "Admin", due_date: "2026-09-20" }),
-    rec("tasks", { title: "Invoice PDF", status: "todo", priority: "medium", assignee: "Admin", due_date: "2026-09-22" }),
-    rec("tasks", { title: "Kanban polish", status: "review", priority: "low", assignee: "Admin", due_date: "2026-09-18" }),
-    rec("tasks", { title: "Seed finance", status: "done", priority: "high", assignee: "Admin", due_date: "2026-09-10" }),
-    rec("quotations", { quote_no: "Q-1042", client: "Northwind", amount: 95000, status: "sent", valid_until: "2026-10-01" }),
-    rec("invoices", { invoice_no: "INV-2201", client: "Northwind", amount: 72000, status: "paid", due_date: "2026-09-05" }),
-    rec("invoices", { invoice_no: "INV-2202", client: "Blue Oak", amount: 41000, status: "due", due_date: "2026-09-30" }),
-    rec("digital_products", { name: "Pitch kit", sku: "DP-01", price: 2499, stock: 120, status: "live" }),
-    rec("recurring_earnings", { name: "Retainer", amount: 35000, cadence: "monthly", next_date: "2026-10-01", active: true }),
-    rec("other_income", { source: "Workshop", amount: 18000, date: "2026-09-02", notes: "Half-day" }),
-    rec("cosmofeed", { product: "Mini course", amount: 8900, date: "2026-09-08", status: "settled", link: "https://cosmofeed.com" }),
-    rec("spends", { category: "Tools", vendor: "Figma", amount: 2400, date: "2026-09-01", method: "UPI", notes: "" }),
-    rec("spends", { category: "Ads", vendor: "Meta", amount: 12000, date: "2026-09-12", method: "Card", notes: "" }),
-    rec("investments", { name: "Liquid fund", type: "mutual_fund", amount: 50000, current_value: 51200, date: "2026-07-01" }),
-    rec("payment_methods", { name: "HDFC Current", type: "bank", last4: "4412", provider: "HDFC", active: true }),
-    rec("emails", { to_addr: "northwind@example.com", subject: "Quote Q-1042", body: "Please find the quote attached.", status: "sent", sent_at: "2026-09-04T10:00:00.000Z" }),
-    rec("notifications", { title: "Invoice paid", message: "INV-2201 marked paid", level: "success", read: false }),
-    rec("reminders", { title: "Follow up Blue Oak", due_at: "2026-09-21T09:00:00.000Z", status: "open", notes: "Call after 11" }),
-    rec("service_credentials", { service: "Hostinger FTP", username: "deploy", secret_ref: "GitHub secret FTP_PASSWORD", notes: "Never store live passwords here" }),
-    rec("blocked_messages", { sender: "spam@list.invalid", channel: "email", reason: "phishing", blocked_at: "2026-09-03T08:00:00.000Z" }),
-    rec("ai_analyzer", { title: "Q3 spend mix", source: "spends", prompt: "Where is cash leaking?", result: "Ads 83% of sampled spends this month.", score: 78 }),
-    rec("analytics", { period: "2026-09", metric: "gross_in", value: 98900, notes: "Invoices paid + Cosmofeed + other" }),
-  ];
-  await db.records.bulkAdd(rows);
-}
+/** One-time empty start. Change this string to wipe CRM data again after deploy. */
+const EMPTY_START = "empty-start-2026-09-17";
 
-function rec(module: string, data: Record<string, unknown>): RecordRow {
-  const t = nowIso();
-  return { id: uid(), module, data, created_at: t, updated_at: t };
+async function wipeToEmptyOnce() {
+  const marker = await db.settings.get("wipe");
+  if (marker?.updated_at === EMPTY_START) return;
+  await db.records.clear();
+  await db.settings.put({ id: "finance", base_balance: 0, updated_at: nowIso() });
+  await db.settings.put({ id: "wipe", base_balance: 0, updated_at: EMPTY_START });
 }
 
 export async function ensureSeed() {
@@ -122,11 +97,11 @@ export async function ensureSeed() {
       await db.user_roles.add({ id: uid(), user_id: id, role: s.role });
     }
   }
+  await wipeToEmptyOnce();
   const settings = await db.settings.get("finance");
   if (!settings) {
-    await db.settings.put({ id: "finance", base_balance: 250000, updated_at: nowIso() });
+    await db.settings.put({ id: "finance", base_balance: 0, updated_at: nowIso() });
   }
-  await seedDemoRecords();
 }
 
 export async function listRecords(module: string) {
