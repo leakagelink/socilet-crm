@@ -98,6 +98,8 @@ export function getBearer(req) {
   return m ? m[1] : "";
 }
 
+export const IDLE_MS = 5 * 60 * 1000;
+
 export function userFromRequest(req, state) {
   prune(state);
   const token = getBearer(req);
@@ -105,7 +107,26 @@ export function userFromRequest(req, state) {
   const hash = sha256Hex(token);
   const session = state.sessions.find((s) => s.tokenHash === hash);
   if (!session) return null;
+  if (session.lastSeenAt) {
+    const seen = Date.parse(session.lastSeenAt);
+    if (Number.isFinite(seen) && Date.now() - seen > IDLE_MS) {
+      state.sessions = state.sessions.filter((s) => s.tokenHash !== hash);
+      saveAuth(state);
+      return null;
+    }
+  }
   return state.users.find((u) => u.id === session.userId) || null;
+}
+
+export function touchSession(req, state) {
+  const token = getBearer(req);
+  if (!token) return;
+  const hash = sha256Hex(token);
+  const session = state.sessions.find((s) => s.tokenHash === hash);
+  if (!session) return;
+  const prev = new Date(session.lastSeenAt || session.createdAt).getTime();
+  session.lastSeenAt = new Date().toISOString();
+  if (!Number.isFinite(prev) || Date.now() - prev > 20_000) saveAuth(state);
 }
 
 export function issueToken(state, userId, days = 7) {
@@ -119,6 +140,7 @@ export function issueToken(state, userId, days = 7) {
     tokenHash: sha256Hex(token),
     expiresAt: expires,
     createdAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
   });
   state.sessions = [...others, ...mine];
   return token;

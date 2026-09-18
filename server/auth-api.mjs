@@ -16,6 +16,7 @@ import {
   saveAuth,
   sha256Hex,
   takeTicket,
+  touchSession,
   userFromRequest,
   verifyLogin,
   verifyTotp,
@@ -120,6 +121,14 @@ export async function handleAuthRequest(req, res, env = process.env) {
       const user = requireUser(req, res, state);
       if (!user) return true;
       json(res, 200, { user: publicUser(user) });
+      return true;
+    }
+
+    if (req.method === "POST" && path === "/api/auth/touch") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      touchSession(req, state);
+      json(res, 200, { ok: true });
       return true;
     }
 

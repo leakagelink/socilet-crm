@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { canAccess, ROLE_HOME, type RoleName } from "@/lib/roles";
+import { IdleLogout } from "@/components/IdleLogout";
 
 export function RequireAuth() {
   const { session, ready } = useAuth();
@@ -10,5 +11,10 @@ export function RequireAuth() {
   if (!canAccess(session.role as RoleName, loc.pathname)) {
     return <Navigate to={ROLE_HOME[session.role as RoleName] || "/denied"} replace />;
   }
-  return <Outlet />;
+  return (
+    <>
+      <IdleLogout />
+      <Outlet />
+    </>
+  );
 }
