@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { ModuleCrud } from "@/pages/ModuleCrud";
 import { moduleById } from "@/lib/modules";
 import { listRecords, type RecordRow } from "@/lib/db";
 import { clientMatch, waLink } from "@/lib/pipeline";
+import { DateChip, ProjectCountdown, RemainingChip, StatusBadge } from "@/components/HighlightCell";
 import { inr } from "@/lib/utils";
 
 function str(v: unknown) {
@@ -108,10 +110,51 @@ export function ClientDetailPage() {
           <div className="text-sm">{str(c.data.gstin) || "—"}</div>
         </Card>
       </div>
-      <Section title="Projects" rows={d.related.projects} href="/projects" label={(r) => `${str(r.data.name)} · ${inr(num(r.data.remaining_amount))} pending`} />
-      <Section title="Quotes" rows={d.related.quotes} href="/quotations" label={(r) => `${str(r.data.quote_no)} · ${str(r.data.status)} · ${inr(num(r.data.amount))}`} />
-      <Section title="Invoices" rows={d.related.invoices} href="/invoices" label={(r) => `${str(r.data.invoice_no)} · ${str(r.data.status)} · ${inr(num(r.data.amount))}`} />
-      <Section title="Emails" rows={d.related.emails} href="/emails" label={(r) => str(r.data.subject) || str(r.data.to_addr) || "Mail"} />
+      <Section
+        title="Projects"
+        rows={d.related.projects}
+        href="/projects"
+        render={(r) => (
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="font-medium">{str(r.data.name)}</span>
+            <StatusBadge value={r.data.status} />
+            <DateChip value={r.data.start_date} field="start_date" label="Start" />
+            <DateChip value={r.data.end_date} field="end_date" label="End" />
+            <DateChip value={r.data.deadline} field="deadline" label="Due" />
+            <ProjectCountdown data={r.data} />
+            <span className="text-paper/55">{inr(num(r.data.remaining_amount))} pending</span>
+          </div>
+        )}
+      />
+      <Section
+        title="Quotes"
+        rows={d.related.quotes}
+        href="/quotations"
+        render={(r) => (
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span>{str(r.data.quote_no)}</span>
+            <StatusBadge value={r.data.status} />
+            <DateChip value={r.data.valid_until} field="valid_until" />
+            <RemainingChip value={r.data.valid_until} />
+            <span>{inr(num(r.data.amount))}</span>
+          </div>
+        )}
+      />
+      <Section
+        title="Invoices"
+        rows={d.related.invoices}
+        href="/invoices"
+        render={(r) => (
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span>{str(r.data.invoice_no)}</span>
+            <StatusBadge value={r.data.status} />
+            <DateChip value={r.data.due_date} field="due_date" />
+            <RemainingChip value={r.data.due_date} />
+            <span>{inr(num(r.data.amount))}</span>
+          </div>
+        )}
+      />
+      <Section title="Emails" rows={d.related.emails} href="/emails" render={(r) => <span>{str(r.data.subject) || str(r.data.to_addr) || "Mail"}</span>} />
     </div>
   );
 }
@@ -120,12 +163,12 @@ function Section({
   title,
   rows,
   href,
-  label,
+  render,
 }: {
   title: string;
   rows: RecordRow[];
   href: string;
-  label: (r: RecordRow) => string;
+  render: (r: RecordRow) => ReactNode;
 }) {
   return (
     <Card className="min-w-0">
@@ -139,7 +182,7 @@ function Section({
       <div className="grid gap-2">
         {rows.map((r) => (
           <div key={r.id} className="rounded-xl border border-white/8 px-3 py-2 text-sm">
-            {label(r)}
+            {render(r)}
           </div>
         ))}
       </div>

@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/PageHeader";
+import { DateChip, RemainingChip, StatusBadge } from "@/components/HighlightCell";
 import { cn } from "@/lib/utils";
 
 const COLS = ["todo", "in_progress", "review", "done"] as const;
@@ -60,17 +61,20 @@ export function TasksPage() {
           const items = filtered.filter((r) => String(r.data.status) === col);
           return (
             <div key={col} className="kanban-col rounded-2xl border border-white/10 bg-panel/40 p-3">
-              <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-wide text-gold/80">
-                <span>{col.replace("_", " ")}</span>
+              <div className="mb-2 flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-gold/80">
+                <StatusBadge value={col} />
                 <span className="rounded-full bg-white/8 px-2 py-0.5 text-paper/50">{items.length}</span>
               </div>
               <div className="grid gap-2">
                 {items.map((row) => (
                   <Card key={row.id} className="shine p-3">
                     <div className="font-medium">{String(row.data.title)}</div>
-                    <div className="text-xs text-paper/50">
-                      {String(row.data.priority)} · {String(row.data.assignee)}
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      <StatusBadge value={row.data.priority} />
+                      <DateChip value={row.data.due_date} field="due_date" />
+                      <RemainingChip value={row.data.due_date} />
                     </div>
+                    <div className="mt-1 text-xs text-paper/50">{String(row.data.assignee || "")}</div>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {COLS.filter((c) => c !== col).map((c) => (
                         <Button key={c} size="sm" variant="outline" onClick={() => move.mutate({ row, status: c })}>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { loadFollowUps } from "@/lib/followups";
+import { StatusBadge } from "@/components/HighlightCell";
 import { cn } from "@/lib/utils";
 
 export function FollowUpsPage() {
@@ -22,7 +23,10 @@ export function FollowUpsPage() {
       <div className="grid gap-2">
         {(q.data ?? []).map((item) => (
           <Card key={item.id} className={cn("min-w-0 p-4", item.tone === "overdue" ? "border-rose-400/40" : "")}>
-            <div className="text-[11px] uppercase tracking-wide text-gold/80">{item.kind}</div>
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <StatusBadge value={item.kind} />
+              <StatusBadge value={item.tone} />
+            </div>
             <div className="font-medium">{item.title}</div>
             <div className="text-sm text-paper/55">{item.detail}</div>
             <div className="mt-3 flex flex-wrap gap-2">

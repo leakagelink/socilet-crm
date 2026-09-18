@@ -9,6 +9,7 @@ import { moduleById } from "@/lib/modules";
 import { listRecords, type RecordRow } from "@/lib/db";
 import { convertQuoteToInvoice, ensureShareToken, markInvoicePaid } from "@/lib/pipeline";
 import { loadFirm } from "@/lib/firm";
+import { DateChip, RemainingChip, StatusBadge } from "@/components/HighlightCell";
 import { inr } from "@/lib/utils";
 
 function str(v: unknown) {
@@ -134,10 +135,20 @@ export function DocumentPrintPage() {
             {firm?.gstin ? <p className="text-sm">GSTIN {firm.gstin}</p> : null}
             {firm?.address ? <p className="text-sm whitespace-pre-wrap">{firm.address}</p> : null}
           </div>
-          <div className="text-right text-sm">
-            <div>Date {str(row.created_at).slice(0, 10)}</div>
-            {kind === "invoice" ? <div>Due {str(row.data.due_date)}</div> : <div>Valid {str(row.data.valid_until)}</div>}
-            <div>Status {str(row.data.status)}</div>
+          <div className="grid justify-items-end gap-1 text-right text-sm">
+            <DateChip value={str(row.created_at).slice(0, 10)} field="date" label="Date" />
+            {kind === "invoice" ? (
+              <>
+                <DateChip value={row.data.due_date} field="due_date" label="Due" />
+                <RemainingChip value={row.data.due_date} />
+              </>
+            ) : (
+              <>
+                <DateChip value={row.data.valid_until} field="valid_until" label="Valid" />
+                <RemainingChip value={row.data.valid_until} />
+              </>
+            )}
+            <StatusBadge value={row.data.status} />
           </div>
         </div>
         <hr className="my-4 border-zinc-200" />

@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/PageHeader";
-import { inr } from "@/lib/utils";
+import { HighlightCell, ProjectCountdown, StatusBadge } from "@/components/HighlightCell";
+import { DATE_FIELDS } from "@/lib/highlights";
 import {
   dateField,
   downloadText,
@@ -17,10 +18,15 @@ import {
   recordsToCsv,
 } from "@/lib/tableTools";
 
-function cell(v: unknown) {
-  if (typeof v === "boolean") return v ? "yes" : "no";
-  if (typeof v === "number") return Number.isInteger(v) ? inr(v) : String(v);
-  return String(v ?? "");
+function visibleFields(module: ModuleDef) {
+  const pinned = module.fields.filter((f) => f.name === "status" || DATE_FIELDS.has(f.name) || f.kind === "date");
+  const rest = module.fields.filter((f) => !pinned.includes(f)).slice(0, 6);
+  const seen = new Set<string>();
+  return [...pinned, ...rest].filter((f) => {
+    if (seen.has(f.name)) return false;
+    seen.add(f.name);
+    return true;
+  });
 }
 
 export function ModuleCrud({
@@ -216,16 +222,22 @@ export function ModuleCrud({
           <div className="grid gap-3 md:hidden">
             {rows.map((row) => (
               <Card key={row.id} className="p-4">
+                {module.id === "projects" ? (
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <StatusBadge value={row.data.status} />
+                    <ProjectCountdown data={row.data} />
+                  </div>
+                ) : row.data.status != null && String(row.data.status) !== "" ? (
+                  <div className="mb-3">
+                    <StatusBadge value={row.data.status} />
+                  </div>
+                ) : null}
                 <div className="grid gap-2">
-                  {module.fields.slice(0, 8).map((f) => (
+                  {visibleFields(module).map((f) => (
                     <div key={f.name} className="min-w-0">
                       <div className="text-[10px] uppercase tracking-wide text-paper/40">{f.label}</div>
-                      <div className="truncate text-sm">
-                        {f.kind === "number"
-                          ? typeof row.data[f.name] === "number"
-                            ? inr(row.data[f.name] as number)
-                            : cell(row.data[f.name])
-                          : cell(row.data[f.name])}
+                      <div className="text-sm">
+                        <HighlightCell field={f} value={row.data[f.name]} row={row.data} moduleId={module.id} />
                       </div>
                     </div>
                   ))}
@@ -259,6 +271,9 @@ export function ModuleCrud({
                       {f.label}
                     </th>
                   ))}
+                  {module.id === "projects" ? (
+                    <th className="px-3 py-3 text-[11px] uppercase tracking-wide font-medium text-paper/50">Time left</th>
+                  ) : null}
                   <th className="px-3 py-3" />
                 </tr>
               </thead>
@@ -266,14 +281,15 @@ export function ModuleCrud({
                 {rows.map((row) => (
                   <tr key={row.id} className="border-t border-white/6 transition hover:bg-gold/5">
                     {module.fields.map((f) => (
-                      <td key={f.name} className="max-w-48 truncate px-3 py-3">
-                        {f.kind === "number"
-                          ? typeof row.data[f.name] === "number"
-                            ? inr(row.data[f.name] as number)
-                            : cell(row.data[f.name])
-                          : cell(row.data[f.name])}
+                      <td key={f.name} className="max-w-48 px-3 py-3">
+                        <HighlightCell field={f} value={row.data[f.name]} row={row.data} moduleId={module.id} />
                       </td>
                     ))}
+                    {module.id === "projects" ? (
+                      <td className="px-3 py-3">
+                        <ProjectCountdown data={row.data} />
+                      </td>
+                    ) : null}
                     <td className="px-3 py-2 whitespace-nowrap">
                       <Button
                         variant="ghost"
