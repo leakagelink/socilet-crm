@@ -66,7 +66,10 @@ export function BarChart({
 }) {
   const max = Math.max(...items.map((i) => Math.abs(i.value)), 1);
   return (
-    <div className="grid h-52 grid-cols-3 items-end gap-4 px-1">
+    <div
+      className="grid h-52 items-end gap-4 px-1"
+      style={{ gridTemplateColumns: `repeat(${Math.max(items.length, 1)}, minmax(0, 1fr))` }}
+    >
       {items.map((i) => (
         <div key={i.label} className="grid justify-items-center gap-2">
           <div className="text-[11px] text-paper/55">{inr(i.value)}</div>
@@ -83,6 +86,140 @@ export function BarChart({
           <div className="text-[11px] uppercase tracking-wide text-paper/45">{i.label}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+const SERIES = [
+  { key: "digital", label: "Digital", color: "#a78bfa" },
+  { key: "other", label: "Other", color: "#fb923c" },
+  { key: "cosmofeed", label: "Cosmofeed", color: "#38bdf8" },
+  { key: "projects", label: "Projects", color: "#34d399" },
+] as const;
+
+export function MonthlyBarChart({
+  months,
+}: {
+  months: { label: string; digital: number; other: number; cosmofeed: number; projects: number; revenue: number }[];
+}) {
+  const max = Math.max(...months.map((m) => m.revenue), 1);
+  if (!months.length) return <p className="text-sm text-paper/45">No dated revenue yet.</p>;
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex h-64 min-w-[28rem] items-end gap-3 px-1 pb-1">
+        {months.map((m) => (
+          <div key={m.label} className="grid min-w-[3.2rem] flex-1 justify-items-center gap-2">
+            <div className="flex h-48 w-full max-w-[3.4rem] flex-col-reverse overflow-hidden rounded-xl bg-white/5">
+              {SERIES.map((s) => {
+                const v = m[s.key];
+                if (v <= 0) return null;
+                return (
+                  <div
+                    key={s.key}
+                    title={`${s.label} ${inr(v)}`}
+                    className="w-full"
+                    style={{ height: `${(v / max) * 100}%`, background: s.color, minHeight: v ? 4 : 0 }}
+                  />
+                );
+              })}
+            </div>
+            <div className="text-[10px] uppercase tracking-wide text-paper/45">{m.label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-paper/55">
+        {SERIES.map((s) => (
+          <span key={s.key} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
+            {s.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function MonthlyLineChart({ months }: { months: { label: string; revenue: number; spends: number }[] }) {
+  if (!months.length) return <p className="text-sm text-paper/45">No dated revenue yet.</p>;
+  const w = 560;
+  const h = 220;
+  const pad = 28;
+  const max = Math.max(...months.flatMap((m) => [m.revenue, m.spends]), 1);
+  const x = (i: number) => pad + (i / Math.max(months.length - 1, 1)) * (w - pad * 2);
+  const y = (v: number) => h - pad - (v / max) * (h - pad * 2);
+  const path = (key: "revenue" | "spends") =>
+    months
+      .map((m, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(m[key])}`)
+      .join(" ");
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-56 w-full">
+        {[0.25, 0.5, 0.75, 1].map((p) => (
+          <line key={p} x1={pad} x2={w - pad} y1={y(max * p)} y2={y(max * p)} stroke="rgba(255,255,255,0.06)" />
+        ))}
+        <path d={path("revenue")} fill="none" stroke="#fb923c" strokeWidth="2.4" strokeLinejoin="round" />
+        <path d={path("spends")} fill="none" stroke="#f87171" strokeWidth="2" strokeDasharray="5 5" />
+        {months.map((m, i) => (
+          <circle key={m.label} cx={x(i)} cy={y(m.revenue)} r="3.5" fill="#fb923c" />
+        ))}
+        {months.map((m, i) => (
+          <text key={`${m.label}-t`} x={x(i)} y={h - 8} textAnchor="middle" fill="rgba(247,241,230,0.45)" fontSize="10">
+            {m.label}
+          </text>
+        ))}
+      </svg>
+      <div className="flex gap-4 text-[11px] text-paper/55">
+        <span className="flex items-center gap-1.5">
+          <span className="h-0.5 w-5 bg-[#fb923c]" /> Revenue
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-px w-5 border-t border-dashed border-[#f87171]" /> Spends
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function DistributionDonut({
+  slices,
+}: {
+  slices: { label: string; value: number; color: string }[];
+}) {
+  const total = slices.reduce((a, s) => a + Math.max(0, s.value), 0);
+  const r = 54;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <div className="flex flex-wrap items-center gap-6">
+      <svg viewBox="0 0 140 140" className="h-40 w-40 shrink-0 -rotate-90">
+        <circle cx="70" cy="70" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" />
+        {slices.map((s) => {
+          const len = total === 0 ? 0 : (Math.max(0, s.value) / total) * c;
+          const el = (
+            <circle
+              key={s.label}
+              cx="70"
+              cy="70"
+              r={r}
+              fill="none"
+              stroke={s.color}
+              strokeWidth="14"
+              strokeDasharray={`${len} ${c}`}
+              strokeDashoffset={-offset}
+            />
+          );
+          offset += len;
+          return el;
+        })}
+      </svg>
+      <div className="grid gap-2 text-sm">
+        {slices.map((s) => (
+          <div key={s.label} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+            {s.label} {inr(s.value)}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

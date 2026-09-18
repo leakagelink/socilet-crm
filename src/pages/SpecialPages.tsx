@@ -8,26 +8,34 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { BarChart, DonutChart, Sparkline } from "@/components/charts";
+import { BarChart, DistributionDonut, DonutChart, MonthlyBarChart, MonthlyLineChart } from "@/components/charts";
 import { PageHeader } from "@/components/PageHeader";
 import { listRecords } from "@/lib/db";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, FolderKanban, CheckSquare, Receipt, FileText, Clock } from "lucide-react";
-
-function trend(d: { base: number; totalIncome: number; totalSpends: number; available: number }) {
-  const a = Math.max(d.base, 0);
-  return [
-    a * 0.72,
-    a * 0.9,
-    a,
-    a + Math.max(d.totalIncome, 0) * 0.45,
-    a + Math.max(d.totalIncome, 0),
-    d.available,
-  ];
-}
+import {
+  ArrowUpRight,
+  FolderKanban,
+  CheckSquare,
+  Receipt,
+  FileText,
+  Clock,
+  Wallet,
+  TrendingDown,
+  Repeat,
+  IndianRupee,
+  Briefcase,
+  Hourglass,
+  ShoppingBag,
+  BadgePercent,
+  Coins,
+  BarChart3,
+  LineChart,
+  PieChart,
+} from "lucide-react";
 
 export function DashboardPage() {
   const f = useFinance();
+  const [chartTab, setChartTab] = useState<"bar" | "trend" | "dist">("bar");
   const counts = useQuery({
     queryKey: ["dash-counts"],
     queryFn: async () => {
@@ -59,56 +67,92 @@ export function DashboardPage() {
     <div className="grid gap-6">
       <PageHeader
         kicker="Overview"
-        title="Command deck"
-        description="Available = base + income − spends. Live poll every 30s. Investments sit outside this mix."
+        title="Revenue dashboard"
+        description="Same breakdown as the old CRM: available = base + income − spends. Live poll every 30s."
       />
       {f.isLoading ? <Card>Loading balances…</Card> : null}
       {f.isError ? <Card className="text-red-300">Could not load finance.</Card> : null}
 
       {d ? (
-        <div className="grid gap-4 xl:grid-cols-12">
-          <Card className="shine relative overflow-hidden xl:col-span-7">
-            <div className="grid-fade pointer-events-none absolute inset-0 opacity-70" />
-            <div className="relative">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-gold/80">Available cash</div>
-                  <div className="mt-2 font-display text-4xl text-gold md:text-5xl">
-                    <AnimatedInr value={d.available} />
-                  </div>
-                </div>
-                <span className="rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-[11px] uppercase tracking-wide text-gold">
-                  Live
-                </span>
-              </div>
-              <div className="mt-6">
-                <Sparkline values={trend(d)} />
-              </div>
-              <p className="mt-2 text-xs text-paper/40">Path from base through income, then spends, to available.</p>
-            </div>
-          </Card>
-          <Card className="xl:col-span-5">
-            <DonutChart income={d.totalIncome} spends={d.totalSpends} />
-          </Card>
+        <div className="stagger grid gap-3 md:grid-cols-3">
+          <HeroTile
+            icon={Wallet}
+            label="Available balance"
+            hint="Base + income − spends"
+            value={d.available}
+            className="bg-gradient-to-br from-violet-600/90 to-fuchsia-600/70"
+          />
+          <HeroTile
+            icon={TrendingDown}
+            label="Total spends"
+            hint="All expenses"
+            value={d.totalSpends}
+            className="bg-gradient-to-br from-rose-500/90 to-orange-500/70"
+          />
+          <HeroTile
+            icon={Repeat}
+            label="Monthly recurring"
+            hint="Active subscriptions"
+            value={d.monthlyRecurring}
+            className="bg-gradient-to-br from-teal-500/90 to-cyan-600/70"
+          />
         </div>
       ) : null}
 
       {d ? (
-        <div className="stagger grid gap-3 sm:grid-cols-3">
-          {[
-            { label: "Base", v: d.base, hint: "Starting ledger" },
-            { label: "Income", v: d.totalIncome, hint: "All inflows", extra: "text-mint" },
-            { label: "Spends", v: d.totalSpends, hint: "All outflows", extra: "text-red-300" },
-          ].map((s) => (
-            <Card key={s.label} className="shine transition duration-300 hover:-translate-y-1 hover:border-gold/35">
-              <div className="text-[11px] uppercase tracking-wide text-paper/45">{s.label}</div>
-              <div className={`mt-2 font-display text-2xl ${s.extra ?? ""}`}>
-                <AnimatedInr value={s.v} />
-              </div>
-              <div className="mt-1 text-xs text-paper/40">{s.hint}</div>
-            </Card>
-          ))}
+        <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <StatTile icon={IndianRupee} label="Total revenue" hint="Received amount" value={d.totalRevenue} tone="text-mint" />
+          <StatTile icon={Briefcase} label="Projects total" hint="All projects value" value={d.projectsTotal} tone="text-violet-300" />
+          <StatTile icon={Hourglass} label="Pending" hint="Yet to receive" value={d.pending} tone="text-amber-300" />
+          <StatTile icon={ShoppingBag} label="Digital sales" hint="Products sold" value={d.digitalSales} tone="text-fuchsia-300" />
+          <StatTile icon={BadgePercent} label="Digital profit" hint="Net profit" value={d.digitalProfit} tone="text-sky-300" />
+          <StatTile icon={Coins} label="Other income" hint="Miscellaneous" value={d.otherIncome} tone="text-orange-300" />
         </div>
+      ) : null}
+
+      {d ? (
+        <Card>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg">Revenue analytics</h2>
+              <p className="text-xs text-paper/45">Monthly trends and breakdown</p>
+            </div>
+            <div className="flex flex-wrap gap-1 rounded-full border border-white/10 bg-white/4 p-1">
+              {(
+                [
+                  ["bar", "Bar chart", BarChart3],
+                  ["trend", "Trend line", LineChart],
+                  ["dist", "Distribution", PieChart],
+                ] as const
+              ).map(([id, label, Icon]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setChartTab(id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs ${
+                    chartTab === id ? "bg-gold/20 text-gold" : "text-paper/55 hover:text-paper"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {chartTab === "bar" ? <MonthlyBarChart months={d.months} /> : null}
+          {chartTab === "trend" ? <MonthlyLineChart months={d.months} /> : null}
+          {chartTab === "dist" ? (
+            <DistributionDonut
+              slices={[
+                { label: "Digital", value: d.digitalSales, color: "#a78bfa" },
+                { label: "Other income", value: d.otherIncome, color: "#fb923c" },
+                { label: "Cosmofeed", value: d.cosmofeed, color: "#38bdf8" },
+                { label: "Projects", value: d.projectsTotal - d.pending, color: "#34d399" },
+                { label: "Recurring", value: d.monthlyRecurring, color: "#2dd4bf" },
+              ]}
+            />
+          ) : null}
+        </Card>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-5">
@@ -164,6 +208,60 @@ export function DashboardPage() {
       </div>
       <p className="text-xs text-paper/35">Last poll {d?.polledAt ?? "—"}</p>
     </div>
+  );
+}
+
+function HeroTile({
+  icon: Icon,
+  label,
+  hint,
+  value,
+  className,
+}: {
+  icon: typeof Wallet;
+  label: string;
+  hint: string;
+  value: number;
+  className: string;
+}) {
+  return (
+    <div className={`shine relative overflow-hidden rounded-2xl p-5 text-white shadow-lg ${className}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[11px] uppercase tracking-[0.16em] text-white/80">{label}</div>
+        <Icon className="h-4 w-4 text-white/80" />
+      </div>
+      <div className="mt-3 font-display text-3xl md:text-4xl">
+        <AnimatedInr value={value} />
+      </div>
+      <div className="mt-1 text-xs text-white/70">{hint}</div>
+    </div>
+  );
+}
+
+function StatTile({
+  icon: Icon,
+  label,
+  hint,
+  value,
+  tone,
+}: {
+  icon: typeof Wallet;
+  label: string;
+  hint: string;
+  value: number;
+  tone: string;
+}) {
+  return (
+    <Card className="shine transition duration-300 hover:-translate-y-1 hover:border-gold/35">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] uppercase tracking-wide text-paper/45">{label}</div>
+        <Icon className={`h-4 w-4 ${tone}`} />
+      </div>
+      <div className={`mt-2 font-display text-2xl ${tone}`}>
+        <AnimatedInr value={value} />
+      </div>
+      <div className="mt-1 text-xs text-paper/40">{hint}</div>
+    </Card>
   );
 }
 
@@ -238,6 +336,10 @@ export function AnalyticsPage() {
                 ]}
               />
             ) : null}
+          </Card>
+          <Card className="lg:col-span-2">
+            <h2 className="mb-2 font-display text-lg">Monthly revenue</h2>
+            {f.data ? <MonthlyBarChart months={f.data.months} /> : null}
           </Card>
         </div>
       }
