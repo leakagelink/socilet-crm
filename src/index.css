@@ -202,7 +202,6 @@ input, textarea, select, button { font: inherit; }
   header, aside { display: none !important; }
   main { padding: 0 !important; }
   #root { overflow: visible; height: auto; }
-}
   .page-enter, .stagger > * { animation: none; }
 }
 
