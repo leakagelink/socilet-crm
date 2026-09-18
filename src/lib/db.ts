@@ -2,7 +2,7 @@ import Dexie, { type EntityTable } from "dexie";
 import { apiJson, getToken } from "@/lib/apiBase";
 import { nowIso, uid } from "@/lib/utils";
 
-export type RoleName = "admin" | "user";
+export type RoleName = "admin" | "designer" | "accountant";
 
 export type Profile = {
   id: string;
@@ -22,6 +22,12 @@ export type SettingsRow = {
   id: string;
   base_balance: number;
   updated_at: string;
+  legal_name?: string;
+  gstin?: string;
+  upi_id?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
 };
 
 export type RecordRow = {

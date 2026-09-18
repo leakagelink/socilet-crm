@@ -1,14 +1,19 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { json } from "./http-util.mjs";
-import { corsAndOptions, guardOrigin, readJson } from "./security.mjs";
+import { corsAndOptions, escapeHtml, guardOrigin, readJson } from "./security.mjs";
 import { requireApiUser } from "./auth-api.mjs";
 import { pickBestCopy, readJsonCopies, writeJsonCopies } from "./persist.mjs";
+
+function emptyFirm() {
+  return { legal_name: "Socilet", gstin: "", upi_id: "", address: "", phone: "", email: "" };
+}
 
 function emptyState() {
   return {
     records: [],
     settings: {
       finance: { id: "finance", base_balance: 0, updated_at: new Date().toISOString() },
+      firm: emptyFirm(),
     },
   };
 }
@@ -25,6 +30,7 @@ function loadState() {
     records: Array.isArray(best.raw.records) ? best.raw.records : [],
     settings: {
       finance: best.raw.settings?.finance || emptyState().settings.finance,
+      firm: { ...emptyFirm(), ...(best.raw.settings?.firm || {}) },
     },
     savedAt: String(best.raw.savedAt || ""),
   };
@@ -33,6 +39,72 @@ function loadState() {
 function saveState(state) {
   state.savedAt = new Date().toISOString();
   writeJsonCopies("crm.json", state);
+}
+
+function backupKey(env) {
+  return scryptSync(String(env.BACKUP_KEY || env.INBOUND_WEBHOOK_SECRET || "socilet-backup"), "socilet-crm-backup", 32);
+}
+
+export async function runDailyBackup(env = process.env) {
+  const meta = readJsonCopies("backups/meta.json");
+  const lastAt = meta[0]?.raw?.lastAt;
+  if (lastAt && Date.now() - Date.parse(String(lastAt)) < 20 * 3600 * 1000) {
+    return { skipped: true };
+  }
+  const state = loadState();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", backupKey(env), iv);
+  const plain = Buffer.from(JSON.stringify({ records: state.records, settings: state.settings, savedAt: new Date().toISOString() }));
+  const enc = Buffer.concat([cipher.update(plain), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const payload = {
+    v: 1,
+    iv: iv.toString("base64"),
+    tag: tag.toString("base64"),
+    data: enc.toString("base64"),
+  };
+  const day = new Date().toISOString().slice(0, 10);
+  writeJsonCopies(`backups/crm-${day}.json`, payload);
+  writeJsonCopies("backups/meta.json", { lastAt: new Date().toISOString() });
+  const to = String(env.BACKUP_EMAIL || "").trim();
+  const key = String(env.RESEND_API_KEY || "").trim();
+  if (to && key) {
+    try {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: env.RESEND_FROM || "Socilet <noreply@socilet.in>",
+          to,
+          subject: `Socilet encrypted backup ${day}`,
+          text: "Encrypted CRM snapshot attached. Keep this file private.",
+          attachments: [{ filename: `socilet-crm-${day}.enc.json`, content: Buffer.from(JSON.stringify(payload)).toString("base64") }],
+        }),
+      });
+    } catch (err) {
+      console.error("backup email failed", err);
+    }
+  }
+  return { ok: true, day };
+}
+
+function docHtml(row, firm) {
+  const data = row.data || {};
+  const kind = row.module === "quotations" ? "Quotation" : "Invoice";
+  const no = data.quote_no || data.invoice_no || "";
+  const amount = Number(data.amount) || 0;
+  const gst = Number(data.gst_amount) || 0;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(kind)} ${escapeHtml(String(no))}</title>
+  <style>body{font-family:Segoe UI,sans-serif;max-width:40rem;margin:2rem auto;color:#111}table{width:100%}</style></head><body>
+  <h1>${escapeHtml(kind)} ${escapeHtml(String(no))}</h1>
+  <p>${escapeHtml(firm.legal_name || "Socilet")}<br>${firm.gstin ? "GSTIN " + escapeHtml(firm.gstin) : ""}</p>
+  <p>Bill to: ${escapeHtml(String(data.client || ""))}<br>${escapeHtml(String(data.client_email || ""))}</p>
+  <table><tr><td>Amount</td><td style="text-align:right">${amount}</td></tr>
+  <tr><td>GST</td><td style="text-align:right">${gst}</td></tr>
+  <tr><td>Total</td><td style="text-align:right">${amount + gst}</td></tr></table>
+  <p>Pay UPI: ${escapeHtml(firm.upi_id || "")}</p>
+  <p>Use Print → Save as PDF.</p>
+  </body></html>`;
 }
 
 function pathname(req) {
@@ -60,7 +132,23 @@ export async function handleCrmRequest(req, res, env = process.env) {
       return true;
     }
 
-    if (!(await requireApiUser(req, res, env))) return true;
+    const doc = path.match(/^\/api\/crm\/doc\/([^/]+)$/);
+    if (doc && req.method === "GET") {
+      const token = doc[1];
+      const state = loadState();
+      const row = state.records.find((r) => String(r.data?.share_token || "") === token && ["invoices", "quotations"].includes(r.module));
+      if (!row) {
+        json(res, 404, { error: "Document not found" });
+        return true;
+      }
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end(docHtml(row, state.settings.firm || emptyFirm()));
+      return true;
+    }
+
+    const user = await requireApiUser(req, res, env);
+    if (!user) return true;
 
     if (req.method === "GET" && path === "/api/crm/records") {
       const module = qs.get("module");
@@ -161,6 +249,51 @@ export async function handleCrmRequest(req, res, env = process.env) {
       };
       saveState(state);
       json(res, 200, { data: state.settings.finance });
+      return true;
+    }
+
+    if (req.method === "GET" && path === "/api/crm/settings/firm") {
+      json(res, 200, { data: loadState().settings.firm || emptyFirm() });
+      return true;
+    }
+    if (req.method === "PUT" && path === "/api/crm/settings/firm") {
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const input = await readJson(req, res);
+      if (!input) return true;
+      const state = loadState();
+      state.settings.firm = {
+        ...emptyFirm(),
+        legal_name: String(input.legal_name || ""),
+        gstin: String(input.gstin || ""),
+        upi_id: String(input.upi_id || ""),
+        address: String(input.address || ""),
+        phone: String(input.phone || ""),
+        email: String(input.email || ""),
+      };
+      saveState(state);
+      json(res, 200, { data: state.settings.firm });
+      return true;
+    }
+
+    if (req.method === "POST" && path === "/api/crm/backup") {
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const result = await runDailyBackup(env);
+      json(res, 200, result);
+      return true;
+    }
+    if (req.method === "GET" && path === "/api/crm/backup") {
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const state = loadState();
+      json(res, 200, { records: state.records, settings: state.settings, savedAt: state.savedAt });
       return true;
     }
 

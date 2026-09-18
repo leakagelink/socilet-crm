@@ -95,8 +95,18 @@ export async function collectAlerts(): Promise<AlertItem[]> {
         href: "/tasks",
       };
     }),
-    fromModule("projects", "/projects", (row) => {
+    fromModule("projects", "/follow-ups", (row) => {
+      const remain = Number(row.data.remaining_amount);
       const status = str(row.data.status);
+      if (Number.isFinite(remain) && remain > 0 && status !== "done" && status !== "completed") {
+        return {
+          source_id: `pending:${row.id}`,
+          title: "Payment pending",
+          message: `${str(row.data.name)} · ${str(row.data.client)}`,
+          level: "warning" as const,
+          href: "/follow-ups",
+        };
+      }
       const start = ts(row.data.start_date);
       if (status === "done" || status === "completed" || status === "paused" || start == null) return null;
       if (start > today + 86400000) return null;
@@ -111,7 +121,7 @@ export async function collectAlerts(): Promise<AlertItem[]> {
         href: "/projects",
       };
     }),
-    fromModule("invoices", "/invoices", (row) => {
+    fromModule("invoices", "/follow-ups", (row) => {
       const status = str(row.data.status);
       const due = ts(row.data.due_date);
       if (status === "paid" || status === "void" || status === "draft" || due == null) return null;
@@ -121,7 +131,7 @@ export async function collectAlerts(): Promise<AlertItem[]> {
         title: "Invoice overdue",
         message: `${str(row.data.invoice_no)} · ${str(row.data.client)}`,
         level: "error",
-        href: "/invoices",
+        href: "/follow-ups",
       };
     }),
     fromModule("quotations", "/quotations", (row) => {
@@ -216,6 +226,15 @@ export async function markAllNotificationsRead(rows: RecordRow[]) {
 
 async function showNativeTray(items: AlertItem[]) {
   if (!items.length) return;
+  try {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      for (const a of items.slice(0, 4)) {
+        new Notification(a.title, { body: a.message });
+      }
+    }
+  } catch {
+    /* web notifications optional */
+  }
   try {
     const { Capacitor } = await import("@capacitor/core");
     if (!Capacitor.isNativePlatform()) return;

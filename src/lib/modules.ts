@@ -51,6 +51,22 @@ function def(partial: Omit<ModuleDef, "schema">): ModuleDef {
 
 export const MODULES: ModuleDef[] = [
   def({
+    id: "clients",
+    title: "Clients",
+    path: "/clients",
+    description: "People and companies — projects, quotes, invoices, pending",
+    fields: [
+      { name: "name", label: "Name", kind: "text" },
+      { name: "company", label: "Company", kind: "text", optional: true },
+      { name: "email", label: "Email", kind: "text", optional: true },
+      { name: "phone", label: "Phone", kind: "text", optional: true },
+      { name: "gstin", label: "GSTIN", kind: "text", optional: true },
+      { name: "upi", label: "UPI id", kind: "text", optional: true },
+      { name: "address", label: "Address", kind: "textarea", optional: true },
+      { name: "notes", label: "Notes", kind: "textarea", optional: true },
+    ],
+  }),
+  def({
     id: "projects",
     title: "Projects",
     path: "/projects",
@@ -58,6 +74,7 @@ export const MODULES: ModuleDef[] = [
     fields: [
       { name: "name", label: "Name", kind: "text" },
       { name: "client", label: "Client", kind: "text" },
+      { name: "client_id", label: "Client id", kind: "text", optional: true },
       { name: "client_email", label: "Client email", kind: "text", optional: true },
       { name: "client_phone", label: "Client phone", kind: "text", optional: true },
       { name: "status", label: "Status", kind: "select", options: ["planned", "active", "paused", "completed", "done"] },
@@ -94,9 +111,16 @@ export const MODULES: ModuleDef[] = [
     fields: [
       { name: "quote_no", label: "Quote no", kind: "text" },
       { name: "client", label: "Client", kind: "text" },
+      { name: "client_id", label: "Client id", kind: "text", optional: true },
+      { name: "client_email", label: "Client email", kind: "text", optional: true },
+      { name: "client_phone", label: "Client phone", kind: "text", optional: true },
       { name: "amount", label: "Amount (INR)", kind: "number" },
+      { name: "gst_amount", label: "GST (INR)", kind: "number" },
       { name: "status", label: "Status", kind: "select", options: ["draft", "sent", "accepted", "lost"] },
       { name: "valid_until", label: "Valid until", kind: "date", optional: true },
+      { name: "invoice_id", label: "Invoice id", kind: "text", optional: true },
+      { name: "share_token", label: "Share token", kind: "text", optional: true },
+      { name: "notes", label: "Notes", kind: "textarea", optional: true },
     ],
   }),
   def({
@@ -133,9 +157,17 @@ export const MODULES: ModuleDef[] = [
     fields: [
       { name: "invoice_no", label: "Invoice no", kind: "text" },
       { name: "client", label: "Client", kind: "text" },
+      { name: "client_id", label: "Client id", kind: "text", optional: true },
+      { name: "client_email", label: "Client email", kind: "text", optional: true },
+      { name: "client_phone", label: "Client phone", kind: "text", optional: true },
       { name: "amount", label: "Amount (INR)", kind: "number" },
+      { name: "gst_amount", label: "GST (INR)", kind: "number" },
       { name: "status", label: "Status", kind: "select", options: ["draft", "due", "paid", "void"] },
       { name: "due_date", label: "Due date", kind: "date" },
+      { name: "paid_at", label: "Paid on", kind: "date", optional: true },
+      { name: "quote_id", label: "Quote id", kind: "text", optional: true },
+      { name: "share_token", label: "Share token", kind: "text", optional: true },
+      { name: "notes", label: "Notes", kind: "textarea", optional: true },
     ],
   }),
   def({

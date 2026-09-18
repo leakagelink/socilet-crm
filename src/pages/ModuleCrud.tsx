@@ -27,10 +27,12 @@ export function ModuleCrud({
   module,
   extra,
   hideHeader,
+  rowActions,
 }: {
   module: ModuleDef;
   extra?: ReactNode;
   hideHeader?: boolean;
+  rowActions?: (row: RecordRow) => ReactNode;
 }) {
   const qc = useQueryClient();
   const q = useQuery({
@@ -228,7 +230,7 @@ export function ModuleCrud({
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -243,6 +245,7 @@ export function ModuleCrud({
                   <Button variant="ghost" size="sm" className="flex-1" onClick={() => remove.mutate(row.id)}>
                     Delete
                   </Button>
+                  {rowActions?.(row)}
                 </div>
               </Card>
             ))}
@@ -285,6 +288,7 @@ export function ModuleCrud({
                       <Button variant="ghost" size="sm" onClick={() => remove.mutate(row.id)}>
                         Delete
                       </Button>
+                      {rowActions?.(row)}
                     </td>
                   </tr>
                 ))}

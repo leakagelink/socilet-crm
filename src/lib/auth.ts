@@ -138,6 +138,36 @@ export async function enableTwoFactor(ticket: string, code: string) {
   return session;
 }
 
+export type StaffUser = {
+  userId: string;
+  email: string;
+  fullName: string;
+  role: RoleName;
+  totpEnabled: boolean;
+};
+
+export async function listStaff() {
+  return apiJson<{ users: StaffUser[] }>("/api/auth/users");
+}
+
+export async function createStaff(input: { email: string; password: string; fullName: string; role: RoleName }) {
+  return apiJson<{ user: StaffUser }>("/api/auth/staff", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function resetStaffPassword(userId: string, password: string) {
+  return apiJson<{ ok: boolean }>(`/api/auth/staff/${userId}/password`, {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}
+
+export async function deleteStaff(userId: string) {
+  return apiJson<{ ok: boolean }>(`/api/auth/staff/${userId}`, { method: "DELETE" });
+}
+
 export async function disableTwoFactor(currentPassword: string, code: string) {
   const data = await apiJson<{ user: Session }>("/api/auth/2fa/disable", {
     method: "POST",

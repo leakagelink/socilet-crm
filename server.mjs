@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { handleEmailRequest } from "./server/email-api.mjs";
-import { handleCrmRequest } from "./server/crm-api.mjs";
+import { handleCrmRequest, runDailyBackup } from "./server/crm-api.mjs";
 import { handleAuthRequest } from "./server/auth-api.mjs";
 
 const dist = join(import.meta.dirname, "dist");
@@ -46,4 +46,8 @@ createServer(async (req, res) => {
   }
 }).listen(port, "0.0.0.0", () => {
   console.log(`Socilet CRM + Resend API on 0.0.0.0:${port}`);
+  void runDailyBackup(process.env);
+  setInterval(() => {
+    void runDailyBackup(process.env);
+  }, 6 * 60 * 60 * 1000);
 });

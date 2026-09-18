@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/apiBase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
+import { ROLE_HOME, isStaffRole } from "@/lib/roles";
 
 const LOCK_KEY = "socilet.loginLock";
 
@@ -92,7 +93,7 @@ export function LoginPage() {
         <div className="relative max-w-md">
           <div className="text-[11px] uppercase tracking-[0.32em] text-gold">Socilet</div>
           <h1 className="font-display mt-3 text-5xl leading-tight">The ledger, dressed for night work.</h1>
-          <p className="mt-4 text-sm text-paper/55">INR command deck for projects, mail, and cash. Admins only — no public sign-up.</p>
+          <p className="mt-4 text-sm text-paper/55">INR command deck for projects, mail, and cash. Admin, designer, and accountant logins.</p>
         </div>
       </div>
       <div className="relative flex items-center justify-center p-4">
@@ -119,7 +120,7 @@ export function LoginPage() {
                 setErr(null);
                 try {
                   const s = await confirmTotp(ticket, code);
-                  navigate(s.role === "admin" ? "/" : "/denied", { replace: true });
+                  navigate(isStaffRole(s.role) ? ROLE_HOME[s.role] : "/denied", { replace: true });
                 } catch (er) {
                   fail(er);
                 }
@@ -163,7 +164,7 @@ export function LoginPage() {
                     setTicket(result.ticket);
                     return;
                   }
-                  navigate(result.role === "admin" ? "/" : "/denied", { replace: true });
+                  navigate(isStaffRole(result.role) ? ROLE_HOME[result.role] : "/denied", { replace: true });
                 } catch (e) {
                   fail(e);
                 }
@@ -202,7 +203,7 @@ export function DeniedPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="max-w-md">
         <h1 className="font-display text-2xl">Access denied</h1>
-        <p className="mt-2 text-sm text-paper/70">This CRM is limited to admins.</p>
+        <p className="mt-2 text-sm text-paper/70">This page is not in your role. Ask an admin if you need access.</p>
         <Button
           className="mt-4"
           onClick={async () => {

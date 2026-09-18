@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { json } from "./http-util.mjs";
 import { clientIp, corsAndOptions, guardOrigin, passwordPolicy, rateLimit, readJson } from "./security.mjs";
 import {
@@ -61,8 +61,8 @@ export async function handleAuthRequest(req, res, env = process.env) {
         json(res, 401, { error: "Invalid email or password" });
         return true;
       }
-      if (user.role !== "admin") {
-        json(res, 403, { error: "This CRM is limited to admins" });
+      if (!["admin", "designer", "accountant"].includes(user.role)) {
+        json(res, 403, { error: "This account cannot sign in" });
         return true;
       }
       if (user.totpEnabled) {
@@ -123,9 +123,130 @@ export async function handleAuthRequest(req, res, env = process.env) {
       return true;
     }
 
+    if (req.method === "GET" && path === "/api/auth/users") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      json(res, 200, {
+        users: state.users.map((u) => publicUser(u)),
+      });
+      return true;
+    }
+
+    if (req.method === "POST" && path === "/api/auth/staff") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const input = await readJson(req, res);
+      if (!input) return true;
+      const email = String(input.email || "")
+        .trim()
+        .toLowerCase();
+      const role = String(input.role || "");
+      if (!email.includes("@")) {
+        json(res, 400, { error: "Enter a valid email" });
+        return true;
+      }
+      if (!["designer", "accountant"].includes(role)) {
+        json(res, 400, { error: "Role must be designer or accountant" });
+        return true;
+      }
+      if (state.users.some((u) => u.email === email)) {
+        json(res, 409, { error: "That email is already in use" });
+        return true;
+      }
+      const policy = passwordPolicy(input.password);
+      if (policy) {
+        json(res, 400, { error: policy });
+        return true;
+      }
+      const next = await makePassword(input.password);
+      const row = {
+        id: randomBytes(16).toString("hex"),
+        email,
+        fullName: String(input.fullName || role).trim() || role,
+        role,
+        passwordSalt: next.salt,
+        passwordHash: next.hash,
+        totpEnabled: false,
+        totpSecret: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      state.users.push(row);
+      saveAuth(state);
+      json(res, 200, { user: publicUser(row) });
+      return true;
+    }
+
+    const staffOne = path.match(/^\/api\/auth\/staff\/([^/]+)$/);
+    if (staffOne && req.method === "DELETE") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const id = staffOne[1];
+      const target = state.users.find((u) => u.id === id);
+      if (!target) {
+        json(res, 404, { error: "Not found" });
+        return true;
+      }
+      if (target.role === "admin") {
+        json(res, 400, { error: "Cannot delete an admin" });
+        return true;
+      }
+      state.users = state.users.filter((u) => u.id !== id);
+      state.sessions = state.sessions.filter((s) => s.userId !== id);
+      saveAuth(state);
+      json(res, 200, { ok: true });
+      return true;
+    }
+
+    const staffPass = path.match(/^\/api\/auth\/staff\/([^/]+)\/password$/);
+    if (staffPass && req.method === "POST") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const input = await readJson(req, res);
+      if (!input) return true;
+      const target = state.users.find((u) => u.id === staffPass[1]);
+      if (!target || target.role === "admin") {
+        json(res, 404, { error: "Not found" });
+        return true;
+      }
+      const policy = passwordPolicy(input.password);
+      if (policy) {
+        json(res, 400, { error: policy });
+        return true;
+      }
+      const next = await makePassword(input.password);
+      target.passwordSalt = next.salt;
+      target.passwordHash = next.hash;
+      target.updatedAt = new Date().toISOString();
+      state.sessions = state.sessions.filter((s) => s.userId !== target.id);
+      saveAuth(state);
+      json(res, 200, { ok: true });
+      return true;
+    }
+
     if (req.method === "POST" && path === "/api/auth/password") {
       const user = requireUser(req, res, state);
       if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Staff cannot change email, password, or 2FA. Ask an admin." });
+        return true;
+      }
       const input = await readJson(req, res);
       if (!input) return true;
       if (!(await checkPassword(user, input.currentPassword))) {
@@ -155,6 +276,10 @@ export async function handleAuthRequest(req, res, env = process.env) {
     if (req.method === "POST" && path === "/api/auth/email") {
       const user = requireUser(req, res, state);
       if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Staff cannot change email, password, or 2FA. Ask an admin." });
+        return true;
+      }
       const input = await readJson(req, res);
       if (!input) return true;
       if (!(await checkPassword(user, input.currentPassword))) {
@@ -186,6 +311,10 @@ export async function handleAuthRequest(req, res, env = process.env) {
     if (req.method === "POST" && path === "/api/auth/2fa/setup") {
       const user = requireUser(req, res, state);
       if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Staff cannot change email, password, or 2FA. Ask an admin." });
+        return true;
+      }
       if (user.totpEnabled) {
         json(res, 400, { error: "2FA is already on. Turn it off first to reset." });
         return true;
@@ -204,6 +333,10 @@ export async function handleAuthRequest(req, res, env = process.env) {
     if (req.method === "POST" && path === "/api/auth/2fa/enable") {
       const user = requireUser(req, res, state);
       if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Staff cannot change email, password, or 2FA. Ask an admin." });
+        return true;
+      }
       const input = await readJson(req, res);
       if (!input) return true;
       const ticket = takeTicket(state, String(input.ticket || ""), "2fa-setup");
@@ -228,6 +361,10 @@ export async function handleAuthRequest(req, res, env = process.env) {
     if (req.method === "POST" && path === "/api/auth/2fa/disable") {
       const user = requireUser(req, res, state);
       if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Staff cannot change email, password, or 2FA. Ask an admin." });
+        return true;
+      }
       const input = await readJson(req, res);
       if (!input) return true;
       if (!(await checkPassword(user, input.currentPassword))) {
@@ -257,7 +394,7 @@ export async function handleAuthRequest(req, res, env = process.env) {
 export async function requireApiUser(req, res, env = process.env) {
   const state = prune(await ensureAdmin(env));
   const user = userFromRequest(req, state);
-  if (!user || user.role !== "admin") {
+  if (!user || !["admin", "designer", "accountant"].includes(user.role)) {
     json(res, 401, { error: "Sign in required" });
     return null;
   }

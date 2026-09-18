@@ -28,6 +28,9 @@ import {
   Video,
   Folder,
   Shield,
+  Users,
+  Landmark,
+  PhoneCall,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -38,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { restoreMailboxesToServer } from "@/lib/mailboxStore";
 import { cn } from "@/lib/utils";
+import { canAccess, type RoleName } from "@/lib/roles";
 
 const ICONS: Record<string, LucideIcon> = {
   "/": LayoutDashboard,
@@ -66,10 +70,13 @@ const ICONS: Record<string, LucideIcon> = {
   "/meetings": Video,
   "/blocked-messages": Ban,
   "/account": Shield,
+  "/clients": Users,
+  "/follow-ups": PhoneCall,
+  "/gst": Landmark,
 };
 
 const groups = [
-  { name: "Work", paths: ["/", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
+  { name: "Work", paths: ["/", "/follow-ups", "/clients", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
   {
     name: "Finance",
     paths: [
@@ -84,6 +91,7 @@ const groups = [
       "/balance-tracker",
       "/payment-methods",
       "/analytics",
+      "/gst",
     ],
   },
   {
@@ -95,17 +103,24 @@ const groups = [
 const titles: Record<string, string> = {
   "/": "Dashboard",
   "/account": "Account",
+  "/follow-ups": "Follow-ups",
+  "/gst": "GST",
   ...Object.fromEntries(MODULES.map((m) => [m.path, m.title])),
 };
 
 function NavList({ onGo }: { onGo?: () => void }) {
+  const { session } = useAuth();
+  const role = session?.role as RoleName | undefined;
   return (
     <nav className="flex flex-col gap-5">
-      {groups.map((g) => (
+      {groups.map((g) => {
+        const paths = g.paths.filter((path) => canAccess(role, path));
+        if (!paths.length) return null;
+        return (
         <div key={g.name}>
           <div className="mb-1.5 px-3 text-[10px] uppercase tracking-[0.2em] text-paper/30">{g.name}</div>
           <div className="flex flex-col gap-0.5">
-            {g.paths.map((path) => {
+            {paths.map((path) => {
               const Icon = ICONS[path] ?? LayoutDashboard;
               return (
                 <NavLink
@@ -129,7 +144,8 @@ function NavList({ onGo }: { onGo?: () => void }) {
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }
@@ -159,6 +175,9 @@ export function AppLayout() {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     void restoreMailboxesToServer();
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      void Notification.requestPermission();
+    }
   }, []);
   return (
     <div className="min-h-full min-w-0 lg:grid lg:grid-cols-[248px_1fr]">
