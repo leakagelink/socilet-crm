@@ -15,8 +15,8 @@ export function DonutChart({
   const incLen = incShare * c;
   const spendLen = spendShare * c;
   return (
-    <div className="flex flex-wrap items-center gap-6">
-      <svg viewBox="0 0 140 140" className="h-40 w-40 shrink-0 -rotate-90">
+    <div className="flex min-w-0 flex-wrap items-center gap-4">
+      <svg viewBox="0 0 140 140" className="mx-auto h-32 w-32 shrink-0 -rotate-90 sm:mx-0 sm:h-40 sm:w-40">
         <circle cx="70" cy="70" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" />
         <circle
           cx="70"
@@ -67,13 +67,13 @@ export function BarChart({
   const max = Math.max(...items.map((i) => Math.abs(i.value)), 1);
   return (
     <div
-      className="grid h-52 items-end gap-4 px-1"
+      className="grid h-44 min-w-0 items-end gap-2 px-0 sm:h-52 sm:gap-4 sm:px-1"
       style={{ gridTemplateColumns: `repeat(${Math.max(items.length, 1)}, minmax(0, 1fr))` }}
     >
       {items.map((i) => (
-        <div key={i.label} className="grid justify-items-center gap-2">
-          <div className="text-[11px] text-paper/55">{inr(i.value)}</div>
-          <div className="flex h-36 w-full max-w-[4.5rem] items-end rounded-2xl bg-white/5 p-1">
+        <div key={i.label} className="grid min-w-0 justify-items-center gap-1 sm:gap-2">
+          <div className="w-full break-all text-center text-[10px] leading-tight text-paper/55 sm:text-[11px]">{inr(i.value)}</div>
+          <div className="flex h-28 w-full max-w-[4.5rem] items-end rounded-2xl bg-white/5 p-1 sm:h-36">
             <div
               className="bar-grow w-full rounded-xl"
               style={{
@@ -105,11 +105,14 @@ export function MonthlyBarChart({
   const max = Math.max(...months.map((m) => m.revenue), 1);
   if (!months.length) return <p className="text-sm text-paper/45">No dated revenue yet.</p>;
   return (
-    <div className="overflow-x-auto">
-      <div className="flex h-64 min-w-[28rem] items-end gap-3 px-1 pb-1">
+    <div className="min-w-0 max-w-full overflow-hidden">
+      <div
+        className="grid h-52 min-w-0 items-end gap-1 px-0 pb-1 sm:h-64 sm:gap-3 sm:px-1"
+        style={{ gridTemplateColumns: `repeat(${Math.max(months.length, 1)}, minmax(0, 1fr))` }}
+      >
         {months.map((m) => (
-          <div key={m.label} className="grid min-w-[3.2rem] flex-1 justify-items-center gap-2">
-            <div className="flex h-48 w-full max-w-[3.4rem] flex-col-reverse overflow-hidden rounded-xl bg-white/5">
+          <div key={m.label} className="grid min-w-0 justify-items-center gap-1 sm:gap-2">
+            <div className="flex h-40 w-full max-w-[3.4rem] flex-col-reverse overflow-hidden rounded-xl bg-white/5 sm:h-48">
               {SERIES.map((s) => {
                 const v = m[s.key];
                 if (v <= 0) return null;
@@ -123,7 +126,7 @@ export function MonthlyBarChart({
                 );
               })}
             </div>
-            <div className="text-[10px] uppercase tracking-wide text-paper/45">{m.label}</div>
+            <div className="w-full truncate text-center text-[9px] uppercase tracking-wide text-paper/45 sm:text-[10px]">{m.label}</div>
           </div>
         ))}
       </div>
@@ -152,8 +155,8 @@ export function MonthlyLineChart({ months }: { months: { label: string; revenue:
       .map((m, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(m[key])}`)
       .join(" ");
   return (
-    <div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-56 w-full">
+    <div className="min-w-0 max-w-full overflow-hidden">
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-44 w-full max-w-full sm:h-56" preserveAspectRatio="xMidYMid meet">
         {[0.25, 0.5, 0.75, 1].map((p) => (
           <line key={p} x1={pad} x2={w - pad} y1={y(max * p)} y2={y(max * p)} stroke="rgba(255,255,255,0.06)" />
         ))}
@@ -168,7 +171,7 @@ export function MonthlyLineChart({ months }: { months: { label: string; revenue:
           </text>
         ))}
       </svg>
-      <div className="flex gap-4 text-[11px] text-paper/55">
+      <div className="flex flex-wrap gap-4 text-[11px] text-paper/55">
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-5 bg-[#fb923c]" /> Revenue
         </span>
@@ -190,8 +193,8 @@ export function DistributionDonut({
   const c = 2 * Math.PI * r;
   let offset = 0;
   return (
-    <div className="flex flex-wrap items-center gap-6">
-      <svg viewBox="0 0 140 140" className="h-40 w-40 shrink-0 -rotate-90">
+    <div className="flex min-w-0 flex-wrap items-center gap-4">
+      <svg viewBox="0 0 140 140" className="mx-auto h-32 w-32 shrink-0 -rotate-90 sm:mx-0 sm:h-40 sm:w-40">
         <circle cx="70" cy="70" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" />
         {slices.map((s) => {
           const len = total === 0 ? 0 : (Math.max(0, s.value) / total) * c;
@@ -214,9 +217,11 @@ export function DistributionDonut({
       </svg>
       <div className="grid gap-2 text-sm">
         {slices.map((s) => (
-          <div key={s.label} className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-            {s.label} {inr(s.value)}
+          <div key={s.label} className="flex min-w-0 items-center gap-2">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+            <span className="min-w-0 break-words">
+              {s.label} {inr(s.value)}
+            </span>
           </div>
         ))}
       </div>

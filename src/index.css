@@ -44,8 +44,10 @@ html body[data-scroll-locked] {
   position: relative;
   z-index: 1;
   height: 100%;
+  overflow-x: hidden;
   overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: none;
   overscroll-behavior-y: contain;
 }
 

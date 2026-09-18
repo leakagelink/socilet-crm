@@ -175,8 +175,8 @@ export function AppLayout() {
         <NavList />
       </aside>
       <div className="flex min-h-full min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/8 bg-panel px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 flex min-w-0 items-center justify-between gap-2 border-b border-white/8 bg-panel px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Button className="lg:hidden" variant="outline" size="icon" aria-label="Open menu" onClick={() => setOpen(true)}>
               <Menu className="h-4 w-4" />
             </Button>
@@ -192,7 +192,7 @@ export function AppLayout() {
             <span className="lg:hidden font-display text-base">Socilet</span>
             <ClockLabel />
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex shrink-0 items-center gap-2 text-sm sm:gap-3">
             <NotificationBell />
             <div className="hidden h-9 items-center rounded-full border border-white/10 bg-white/5 px-3 sm:flex">
               <span className="max-w-40 truncate text-paper/70">{session?.email}</span>
@@ -211,7 +211,7 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        <main key={loc.pathname} className="page-enter min-w-0 flex-1 p-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-4 md:p-8">
+        <main key={loc.pathname} className="page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-4 md:p-8">
           <Outlet />
         </main>
       </div>

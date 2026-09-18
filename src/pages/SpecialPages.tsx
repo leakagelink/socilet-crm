@@ -64,7 +64,7 @@ export function DashboardPage() {
   ] as const;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 max-w-full gap-4 sm:gap-6">
       <PageHeader
         kicker="Overview"
         title="Revenue dashboard"
@@ -74,7 +74,7 @@ export function DashboardPage() {
       {f.isError ? <Card className="text-red-300">Could not load finance.</Card> : null}
 
       {d ? (
-        <div className="stagger grid gap-3 md:grid-cols-3">
+        <div className="stagger grid min-w-0 gap-3 sm:grid-cols-2 md:grid-cols-3">
           <HeroTile
             icon={Wallet}
             label="Available balance"
@@ -100,7 +100,7 @@ export function DashboardPage() {
       ) : null}
 
       {d ? (
-        <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <div className="stagger grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3 2xl:grid-cols-6">
           <StatTile icon={IndianRupee} label="Total revenue" hint="Received amount" value={d.totalRevenue} tone="text-mint" />
           <StatTile icon={Briefcase} label="Projects total" hint="All projects value" value={d.projectsTotal} tone="text-violet-300" />
           <StatTile icon={Hourglass} label="Pending" hint="Yet to receive" value={d.pending} tone="text-amber-300" />
@@ -111,30 +111,30 @@ export function DashboardPage() {
       ) : null}
 
       {d ? (
-        <Card>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
+        <Card className="min-w-0 overflow-hidden p-3 sm:p-5">
+          <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <h2 className="font-display text-lg">Revenue analytics</h2>
               <p className="text-xs text-paper/45">Monthly trends and breakdown</p>
             </div>
-            <div className="flex flex-wrap gap-1 rounded-full border border-white/10 bg-white/4 p-1">
+            <div className="grid w-full min-w-0 grid-cols-3 gap-1 rounded-full border border-white/10 bg-white/4 p-1 sm:w-auto sm:flex sm:flex-wrap">
               {(
                 [
-                  ["bar", "Bar chart", BarChart3],
-                  ["trend", "Trend line", LineChart],
-                  ["dist", "Distribution", PieChart],
+                  ["bar", "Bar", BarChart3],
+                  ["trend", "Trend", LineChart],
+                  ["dist", "Mix", PieChart],
                 ] as const
               ).map(([id, label, Icon]) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setChartTab(id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs ${
+                  className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-[11px] sm:gap-1.5 sm:px-3 sm:text-xs ${
                     chartTab === id ? "bg-gold/20 text-gold" : "text-paper/55 hover:text-paper"
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{label}</span>
                 </button>
               ))}
             </div>
@@ -155,8 +155,8 @@ export function DashboardPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-5">
+        <Card className="min-w-0 overflow-hidden p-3 sm:p-5 lg:col-span-3">
           <h2 className="mb-3 font-display text-lg">Ledger stack</h2>
           {d ? (
             <BarChart
@@ -168,9 +168,9 @@ export function DashboardPage() {
             />
           ) : null}
         </Card>
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 overflow-hidden p-3 sm:p-5 lg:col-span-2">
           <h2 className="mb-3 font-display text-lg">Recent motion</h2>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             {(activity.data ?? []).length === 0 ? (
               <p className="text-sm text-paper/45">No rows yet — add a project, invoice, or spend and it shows here.</p>
             ) : (
@@ -178,12 +178,12 @@ export function DashboardPage() {
                 const title = MODULES.find((m) => m.id === row.module)?.title ?? row.module;
                 const name = String(row.data.name ?? row.data.title ?? row.data.quote_no ?? row.data.invoice_no ?? title);
                 return (
-                  <div key={row.id} className="flex items-center justify-between rounded-xl border border-white/6 bg-white/3 px-3 py-2">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wide text-gold/70">{title}</div>
+                  <div key={row.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-white/6 bg-white/3 px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-[10px] uppercase tracking-wide text-gold/70">{title}</div>
                       <div className="truncate text-sm">{name}</div>
                     </div>
-                    <div className="text-[11px] text-paper/40">{row.updated_at.slice(0, 10)}</div>
+                    <div className="shrink-0 text-[11px] text-paper/40">{row.updated_at.slice(0, 10)}</div>
                   </div>
                 );
               })
@@ -192,10 +192,10 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="stagger grid min-w-0 grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
         {tiles.map(([label, href, n, Icon]) => (
-          <Link key={href} to={href} className="block">
-            <Card className="shine group transition duration-300 hover:-translate-y-1 hover:border-mint/35">
+          <Link key={href} to={href} className="block min-w-0">
+            <Card className="shine group min-w-0 p-3 transition duration-300 hover:-translate-y-1 hover:border-mint/35 sm:p-5">
               <div className="flex items-center justify-between">
                 <Icon className="h-4 w-4 text-gold/80" />
                 <ArrowUpRight className="h-4 w-4 text-paper/25 transition group-hover:text-mint" />
@@ -225,15 +225,15 @@ function HeroTile({
   className: string;
 }) {
   return (
-    <div className={`shine relative overflow-hidden rounded-2xl p-5 text-white shadow-lg ${className}`}>
+    <div className={`shine relative min-w-0 overflow-hidden rounded-2xl p-3 text-white shadow-lg sm:p-5 ${className}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-[0.16em] text-white/80">{label}</div>
-        <Icon className="h-4 w-4 text-white/80" />
+        <div className="min-w-0 truncate text-[10px] uppercase tracking-[0.12em] text-white/80 sm:text-[11px] sm:tracking-[0.16em]">{label}</div>
+        <Icon className="h-4 w-4 shrink-0 text-white/80" />
       </div>
-      <div className="mt-3 font-display text-3xl md:text-4xl">
+      <div className="mt-2 break-all font-display text-2xl leading-tight sm:mt-3 sm:text-3xl md:text-4xl">
         <AnimatedInr value={value} />
       </div>
-      <div className="mt-1 text-xs text-white/70">{hint}</div>
+      <div className="mt-1 truncate text-xs text-white/70">{hint}</div>
     </div>
   );
 }
@@ -252,15 +252,15 @@ function StatTile({
   tone: string;
 }) {
   return (
-    <Card className="shine transition duration-300 hover:-translate-y-1 hover:border-gold/35">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-wide text-paper/45">{label}</div>
-        <Icon className={`h-4 w-4 ${tone}`} />
+    <Card className="shine min-w-0 p-3 transition duration-300 hover:-translate-y-1 hover:border-gold/35 sm:p-5">
+      <div className="flex min-w-0 items-center justify-between gap-1">
+        <div className="min-w-0 truncate text-[10px] uppercase tracking-wide text-paper/45 sm:text-[11px]">{label}</div>
+        <Icon className={`h-4 w-4 shrink-0 ${tone}`} />
       </div>
-      <div className={`mt-2 font-display text-2xl ${tone}`}>
+      <div className={`mt-2 break-all font-display text-lg leading-tight sm:text-2xl ${tone}`}>
         <AnimatedInr value={value} />
       </div>
-      <div className="mt-1 text-xs text-paper/40">{hint}</div>
+      <div className="mt-1 truncate text-xs text-paper/40">{hint}</div>
     </Card>
   );
 }

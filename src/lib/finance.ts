@@ -69,7 +69,7 @@ function monthKey(raw: unknown) {
 function monthLabel(key: string) {
   const [y, mo] = key.split("-");
   const d = new Date(Number(y), Number(mo) - 1, 1);
-  return d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+  return d.toLocaleString("en-IN", { month: "short" });
 }
 
 function emptyMonth(month: string): MonthBucket {

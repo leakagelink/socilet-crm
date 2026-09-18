@@ -21,5 +21,5 @@ export function AnimatedInr({ value }: { value: number }) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [value]);
-  return <span className="anim-inr font-semibold tracking-tight">{inr(Math.round(shown))}</span>;
+  return <span className="anim-inr inline-block max-w-full break-all font-semibold tracking-tight">{inr(Math.round(shown))}</span>;
 }
