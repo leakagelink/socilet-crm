@@ -413,8 +413,6 @@ export function EmailsPage() {
                   <div className="whitespace-pre-wrap break-words rounded-xl bg-panel/80 p-4 text-sm leading-relaxed text-paper/90 [overflow-wrap:anywhere]">
                     {preview || "No body text."}
                   </div>
-                    {preview || "No body text."}
-                  </div>
                   <Button
                     variant="outline"
                     className="w-full sm:w-auto"
