@@ -1,18 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { json } from "./http-util.mjs";
 import { corsAndOptions, guardOrigin, readJson } from "./security.mjs";
 import { requireApiUser } from "./auth-api.mjs";
-
-function storePaths() {
-  const paths = [];
-  const dataDir = process.env.DATA_DIR?.trim();
-  if (dataDir) paths.push(join(dataDir, "crm.json"));
-  paths.push(join(process.cwd(), "..", ".socilet-persist", "crm.json"));
-  paths.push(join(process.cwd(), "data", "crm.json"));
-  return [...new Set(paths)];
-}
+import { pickBestCopy, readJsonCopies, writeJsonCopies } from "./persist.mjs";
 
 function emptyState() {
   return {
@@ -24,37 +14,25 @@ function emptyState() {
 }
 
 function loadState() {
-  for (const file of storePaths()) {
-    try {
-      if (!existsSync(file)) continue;
-      const raw = JSON.parse(readFileSync(file, "utf8"));
-      if (!raw || typeof raw !== "object") continue;
-      return {
-        records: Array.isArray(raw.records) ? raw.records : [],
-        settings: {
-          finance: raw.settings?.finance || emptyState().settings.finance,
-        },
-      };
-    } catch {
-      /* next path */
-    }
-  }
-  return emptyState();
+  const copies = readJsonCopies("crm.json").filter((c) => c.raw && typeof c.raw === "object" && !Array.isArray(c.raw));
+  const best = pickBestCopy(copies, (copy) => {
+    const records = Array.isArray(copy.raw?.records) ? copy.raw.records : [];
+    const saved = Date.parse(copy.raw?.savedAt || "") || 0;
+    return records.length * 1e13 + Math.max(saved, copy.mtime || 0);
+  });
+  if (!best) return emptyState();
+  return {
+    records: Array.isArray(best.raw.records) ? best.raw.records : [],
+    settings: {
+      finance: best.raw.settings?.finance || emptyState().settings.finance,
+    },
+    savedAt: String(best.raw.savedAt || ""),
+  };
 }
 
 function saveState(state) {
-  const body = JSON.stringify(state, null, 2);
-  let wrote = false;
-  for (const file of storePaths()) {
-    try {
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, body, "utf8");
-      wrote = true;
-    } catch (err) {
-      console.error("crm persist failed", file, err);
-    }
-  }
-  if (!wrote) throw new Error("Could not persist CRM data");
+  state.savedAt = new Date().toISOString();
+  writeJsonCopies("crm.json", state);
 }
 
 function pathname(req) {

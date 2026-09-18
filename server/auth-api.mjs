@@ -144,6 +144,7 @@ export async function handleAuthRequest(req, res, env = process.env) {
       const next = await makePassword(input.newPassword);
       user.passwordSalt = next.salt;
       user.passwordHash = next.hash;
+      user.updatedAt = new Date().toISOString();
       state.sessions = state.sessions.filter((s) => s.userId !== user.id);
       const token = issueToken(state, user.id);
       saveAuth(state);
@@ -176,6 +177,7 @@ export async function handleAuthRequest(req, res, env = process.env) {
         return true;
       }
       user.email = email;
+      user.updatedAt = new Date().toISOString();
       saveAuth(state);
       json(res, 200, { user: publicUser(user) });
       return true;
@@ -217,6 +219,7 @@ export async function handleAuthRequest(req, res, env = process.env) {
       }
       user.totpSecret = ticket.secret;
       user.totpEnabled = true;
+      user.updatedAt = new Date().toISOString();
       saveAuth(state);
       json(res, 200, { user: publicUser(user) });
       return true;
@@ -237,6 +240,7 @@ export async function handleAuthRequest(req, res, env = process.env) {
       }
       user.totpEnabled = false;
       user.totpSecret = null;
+      user.updatedAt = new Date().toISOString();
       saveAuth(state);
       json(res, 200, { user: publicUser(user) });
       return true;

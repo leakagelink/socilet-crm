@@ -1,19 +1,9 @@
 import { createHash, createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { persistCopyCount, pickBestCopy, readJsonCopies, writeJsonCopies } from "./persist.mjs";
 
 const scrypt = promisify(scryptCb);
 const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-
-function storePaths() {
-  const paths = [];
-  const dataDir = process.env.DATA_DIR?.trim();
-  if (dataDir) paths.push(join(dataDir, "auth.json"));
-  paths.push(join(process.cwd(), "..", ".socilet-persist", "auth.json"));
-  paths.push(join(process.cwd(), "data", "auth.json"));
-  return [...new Set(paths)];
-}
 
 function emptyState() {
   return {
@@ -24,38 +14,41 @@ function emptyState() {
   };
 }
 
+function normalizeAuth(raw) {
+  return {
+    users: Array.isArray(raw?.users) ? raw.users : [],
+    sessions: Array.isArray(raw?.sessions) ? raw.sessions : [],
+    tickets: Array.isArray(raw?.tickets) ? raw.tickets : [],
+    inboundSecret: String(raw?.inboundSecret || randomBytes(24).toString("base64url")),
+    savedAt: String(raw?.savedAt || ""),
+  };
+}
+
+function authScore(copy) {
+  const users = Array.isArray(copy.raw?.users) ? copy.raw.users : [];
+  const saved = Date.parse(copy.raw?.savedAt || "") || 0;
+  const defaultEmail = String(process.env.ADMIN_EMAIL || "admin@socilet.local")
+    .trim()
+    .toLowerCase();
+  const custom = users.some(
+    (u) =>
+      u?.totpEnabled ||
+      (u?.email && String(u.email).toLowerCase() !== defaultEmail) ||
+      (u?.updatedAt && u.updatedAt !== u.createdAt),
+  );
+  return users.length * 1e13 + (custom ? 1e12 : 0) + Math.max(saved, copy.mtime || 0);
+}
+
 export function loadAuth() {
-  for (const file of storePaths()) {
-    try {
-      if (!existsSync(file)) continue;
-      const raw = JSON.parse(readFileSync(file, "utf8"));
-      if (!raw || typeof raw !== "object") continue;
-      return {
-        users: Array.isArray(raw.users) ? raw.users : [],
-        sessions: Array.isArray(raw.sessions) ? raw.sessions : [],
-        tickets: Array.isArray(raw.tickets) ? raw.tickets : [],
-        inboundSecret: String(raw.inboundSecret || randomBytes(24).toString("base64url")),
-      };
-    } catch {
-      /* next */
-    }
-  }
-  return emptyState();
+  const copies = readJsonCopies("auth.json").filter((c) => c.raw && typeof c.raw === "object" && !Array.isArray(c.raw));
+  const best = pickBestCopy(copies, authScore);
+  if (!best) return emptyState();
+  return normalizeAuth(best.raw);
 }
 
 export function saveAuth(state) {
-  const body = JSON.stringify(state, null, 2);
-  let wrote = false;
-  for (const file of storePaths()) {
-    try {
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, body, "utf8");
-      wrote = true;
-    } catch (err) {
-      console.error("auth persist failed", file, err);
-    }
-  }
-  if (!wrote) throw new Error("Could not persist auth data");
+  state.savedAt = new Date().toISOString();
+  writeJsonCopies("auth.json", state);
 }
 
 export function sha256Hex(value) {
@@ -247,7 +240,16 @@ export async function verifyLogin(state, email, password) {
 
 export async function ensureAdmin(env = process.env) {
   const state = prune(loadAuth());
-  if (state.users.length) return state;
+  if (state.users.length) {
+    if (persistCopyCount("auth.json") < 2) {
+      try {
+        saveAuth(state);
+      } catch {
+        /* extra copies are best-effort */
+      }
+    }
+    return state;
+  }
   const email = String(env.ADMIN_EMAIL || "admin@socilet.local")
     .trim()
     .toLowerCase();
@@ -263,6 +265,7 @@ export async function ensureAdmin(env = process.env) {
     totpEnabled: false,
     totpSecret: null,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
   saveAuth(state);
   if (!env.ADMIN_PASSWORD) {

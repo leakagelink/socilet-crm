@@ -1,21 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { json } from "./http-util.mjs";
 import { corsAndOptions, escapeHtml, guardOrigin, readJson } from "./security.mjs";
 import { inboundOk, requireApiUser } from "./auth-api.mjs";
+import { persistFiles, writeJsonCopies } from "./persist.mjs";
 
 const RESEND = "https://api.resend.com";
 
 function storePaths() {
-  const paths = [];
-  const envFile = process.env.MAILBOX_STORE?.trim();
-  if (envFile) paths.push(envFile);
-  const dataDir = process.env.DATA_DIR?.trim();
-  if (dataDir) paths.push(join(dataDir, "mailboxes.json"));
-  paths.push(join(process.cwd(), "..", ".socilet-persist", "mailboxes.json"));
-  paths.push(join(process.cwd(), "data", "mailboxes.json"));
-  return [...new Set(paths)];
+  return persistFiles("mailboxes.json", [process.env.MAILBOX_STORE]);
 }
 
 function readRows(file) {
@@ -39,18 +32,7 @@ function loadStore() {
 }
 
 function saveStore(rows) {
-  const body = JSON.stringify(rows, null, 2);
-  let wrote = false;
-  for (const file of storePaths()) {
-    try {
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, body, "utf8");
-      wrote = true;
-    } catch (err) {
-      console.error("mailbox persist failed", file, err);
-    }
-  }
-  if (!wrote) throw new Error("Could not persist mailboxes");
+  writeJsonCopies("mailboxes.json", rows, [process.env.MAILBOX_STORE]);
 }
 
 function maskKey(key) {
