@@ -44,6 +44,8 @@ export function setVaultToken(token: string | null) {
     /* ignore */
   }
 }
+
+export async function apiFetch(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);

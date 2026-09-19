@@ -209,6 +209,8 @@ function BottomBar({ onMore }: { onMore: () => void }) {
     </nav>
   );
 }
+
+function ClockLabel() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
