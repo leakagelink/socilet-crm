@@ -5,6 +5,7 @@ const STATUS_TONE: Record<string, string> = {
   settled: "ok",
   accepted: "ok",
   active: "ok",
+  running: "info",
   sent: "info",
   review: "info",
   in_progress: "info",
@@ -105,7 +106,7 @@ export function formatDay(raw: unknown) {
 export function isProjectStarted(data: Record<string, unknown>) {
   const status = String(data.status ?? "").toLowerCase();
   if (["completed", "done", "paused"].includes(status)) return false;
-  if (status === "active") return true;
+  if (status === "active" || status === "running") return true;
   const start = String(data.start_date ?? "").slice(0, 10);
   if (!start) return false;
   const today = new Date().toISOString().slice(0, 10);

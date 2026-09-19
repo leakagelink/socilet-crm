@@ -5,8 +5,10 @@ import {
   checkPassword,
   ensureAdmin,
   getBearer,
+  getVaultUnlock,
   issueTicket,
   issueToken,
+  issueVaultUnlock,
   loadAuth,
   makePassword,
   makeTotpSecret,
@@ -18,6 +20,7 @@ import {
   takeTicket,
   touchSession,
   userFromRequest,
+  vaultConfigured,
   verifyLogin,
   verifyTotp,
 } from "./auth-store.mjs";
@@ -389,6 +392,116 @@ export async function handleAuthRequest(req, res, env = process.env) {
       user.updatedAt = new Date().toISOString();
       saveAuth(state);
       json(res, 200, { user: publicUser(user) });
+      return true;
+    }
+
+    if (req.method === "GET" && path === "/api/auth/vault/status") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      json(res, 200, {
+        configured: vaultConfigured(state),
+        unlocked: Boolean(getVaultUnlock(req, state)),
+      });
+      return true;
+    }
+
+    if (req.method === "POST" && path === "/api/auth/vault/setup") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      if (vaultConfigured(state)) {
+        json(res, 400, { error: "Vault is already set. Unlock with password and 2FA." });
+        return true;
+      }
+      const input = await readJson(req, res);
+      if (!input) return true;
+      const policy = passwordPolicy(input.password);
+      if (policy) {
+        json(res, 400, { error: policy });
+        return true;
+      }
+      const next = await makePassword(input.password);
+      const secret = makeTotpSecret();
+      const ticket = issueTicket(state, user.id, "vault-setup", { ...next, secret }, 10);
+      saveAuth(state);
+      json(res, 200, {
+        ticket,
+        secret,
+        otpauth: otpauthUrl(user.email, secret, "Socilet Vault"),
+      });
+      return true;
+    }
+
+    if (req.method === "POST" && path === "/api/auth/vault/enable") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const input = await readJson(req, res);
+      if (!input) return true;
+      const ticket = takeTicket(state, String(input.ticket || ""), "vault-setup");
+      if (!ticket?.secret || !ticket.hash || !ticket.salt) {
+        json(res, 400, { error: "Vault setup expired. Set a password again." });
+        return true;
+      }
+      if (!verifyTotp(ticket.secret, input.code)) {
+        state.tickets.push(ticket);
+        saveAuth(state);
+        json(res, 401, { error: "Invalid authenticator code" });
+        return true;
+      }
+      state.vault = {
+        passwordHash: ticket.hash,
+        passwordSalt: ticket.salt,
+        totpSecret: ticket.secret,
+        totpEnabled: true,
+        updatedAt: new Date().toISOString(),
+      };
+      const token = issueVaultUnlock(state, user.id);
+      saveAuth(state);
+      json(res, 200, { ok: true, token, expiresIn: 15 * 60 });
+      return true;
+    }
+
+    if (req.method === "POST" && path === "/api/auth/vault/unlock") {
+      const user = requireUser(req, res, state);
+      if (!user) return true;
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const limit = rateLimit(`vault:${clientIp(req)}`, 5, 5 * 60 * 1000);
+      if (!limit.ok) {
+        res.setHeader("Retry-After", String(limit.retryAfter));
+        json(res, 429, { error: "Too many unlock attempts", retryAfter: limit.retryAfter });
+        return true;
+      }
+      if (!vaultConfigured(state)) {
+        json(res, 400, { error: "Set vault password and 2FA first" });
+        return true;
+      }
+      const input = await readJson(req, res);
+      if (!input) return true;
+      const passOk = await checkPassword(
+        { passwordHash: state.vault.passwordHash, passwordSalt: state.vault.passwordSalt },
+        input.password,
+      );
+      if (!passOk || !verifyTotp(state.vault.totpSecret, input.code)) {
+        json(res, 401, { error: "Wrong vault password or authenticator code" });
+        return true;
+      }
+      const token = issueVaultUnlock(state, user.id);
+      saveAuth(state);
+      json(res, 200, { ok: true, token, expiresIn: 15 * 60 });
       return true;
     }
 

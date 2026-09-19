@@ -150,7 +150,65 @@ function NavList({ onGo }: { onGo?: () => void }) {
   );
 }
 
-function ClockLabel() {
+const BOTTOM_TABS: Record<RoleName, string[]> = {
+  admin: ["/", "/clients", "/projects", "/tasks"],
+  designer: ["/", "/clients", "/projects", "/tasks"],
+  accountant: ["/", "/clients", "/invoices", "/follow-ups"],
+};
+
+const BOTTOM_LABELS: Record<string, string> = {
+  "/": "Home",
+  "/clients": "Clients",
+  "/projects": "Projects",
+  "/tasks": "Tasks",
+  "/invoices": "Invoices",
+  "/follow-ups": "Follow",
+};
+
+function tabActive(path: string, pathname: string) {
+  if (path === "/") return pathname === "/";
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function BottomBar({ onMore }: { onMore: () => void }) {
+  const { session } = useAuth();
+  const loc = useLocation();
+  const role = (session?.role as RoleName | undefined) || "admin";
+  const tabs = (BOTTOM_TABS[role] ?? BOTTOM_TABS.admin).filter((path) => canAccess(role, path));
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-white/10 bg-panel/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_40px_-24px_rgba(0,0,0,0.9)] backdrop-blur-md print:hidden lg:hidden"
+      aria-label="Main"
+    >
+      {tabs.map((path) => {
+        const Icon = ICONS[path] ?? LayoutDashboard;
+        const on = tabActive(path, loc.pathname);
+        return (
+          <NavLink
+            key={path}
+            to={path}
+            end={path === "/"}
+            className={cn(
+              "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-[10px] font-medium",
+              on ? "text-gold" : "text-paper/50",
+            )}
+          >
+            <Icon className={cn("h-5 w-5", on ? "opacity-100" : "opacity-70")} />
+            <span className="max-w-full truncate">{BOTTOM_LABELS[path] ?? titles[path]}</span>
+          </NavLink>
+        );
+      })}
+      <button
+        type="button"
+        onClick={onMore}
+        className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-[10px] font-medium text-paper/50"
+      >
+        <Menu className="h-5 w-5 opacity-70" />
+        <span>More</span>
+      </button>
+    </nav>
+  );
+}
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
@@ -196,9 +254,6 @@ export function AppLayout() {
       <div className="flex min-h-full min-w-0 flex-col">
         <header className="sticky top-0 z-30 flex min-w-0 items-center justify-between gap-2 border-b border-white/8 bg-panel px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <Button className="lg:hidden" variant="outline" size="icon" aria-label="Open menu" onClick={() => setOpen(true)}>
-              <Menu className="h-4 w-4" />
-            </Button>
             <OverlayPortal open={open} onClose={() => setOpen(false)}>
               <div className="fixed inset-0 z-50 lg:hidden">
                 <button type="button" aria-label="Close menu" className="absolute inset-0 bg-black/55" onClick={() => setOpen(false)} />
@@ -230,9 +285,10 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        <main key={loc.pathname} className="page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-4 md:p-8">
+        <main key={loc.pathname} className="page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:p-4 md:p-8 lg:pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <Outlet />
         </main>
+        <BottomBar onMore={() => setOpen(true)} />
       </div>
     </div>
   );

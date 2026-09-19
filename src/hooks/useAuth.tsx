@@ -41,6 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(result.session);
         const { ensureSeed } = await import("@/lib/db");
         await ensureSeed();
+        const { setFingerprintUnlocked, resetFingerprintFails } = await import("@/lib/biometrics");
+        resetFingerprintFails();
+        setFingerprintUnlocked(true);
         return result.session;
       },
       confirmTotp: async (ticket, code) => {
@@ -48,9 +51,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(s);
         const { ensureSeed } = await import("@/lib/db");
         await ensureSeed();
+        const { setFingerprintUnlocked, resetFingerprintFails } = await import("@/lib/biometrics");
+        resetFingerprintFails();
+        setFingerprintUnlocked(true);
         return s;
       },
       signOut: async () => {
+        const { setFingerprintUnlocked } = await import("@/lib/biometrics");
+        setFingerprintUnlocked(false);
         await doSignOut();
         setSession(null);
       },

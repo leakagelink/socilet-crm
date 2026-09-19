@@ -445,7 +445,7 @@ export function EmailsPage() {
         <button
           type="button"
           onClick={startCompose}
-          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-3 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
+          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
           aria-label="Compose mail"
         >
           <PenLine className="h-6 w-6" />

@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { canAccess, ROLE_HOME, type RoleName } from "@/lib/roles";
-import { IdleLogout } from "@/components/IdleLogout";
+import { FingerprintLock } from "@/components/FingerprintLock";
 
 export function RequireAuth() {
   const { session, ready } = useAuth();
@@ -13,7 +13,7 @@ export function RequireAuth() {
   }
   return (
     <>
-      <IdleLogout />
+      <FingerprintLock />
       <Outlet />
     </>
   );

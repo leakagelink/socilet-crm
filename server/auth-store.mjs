@@ -10,6 +10,8 @@ function emptyState() {
     users: [],
     sessions: [],
     tickets: [],
+    vaultUnlocks: [],
+    vault: null,
     inboundSecret: randomBytes(24).toString("base64url"),
   };
 }
@@ -19,6 +21,8 @@ function normalizeAuth(raw) {
     users: Array.isArray(raw?.users) ? raw.users : [],
     sessions: Array.isArray(raw?.sessions) ? raw.sessions : [],
     tickets: Array.isArray(raw?.tickets) ? raw.tickets : [],
+    vaultUnlocks: Array.isArray(raw?.vaultUnlocks) ? raw.vaultUnlocks : [],
+    vault: raw?.vault && typeof raw.vault === "object" ? raw.vault : null,
     inboundSecret: String(raw?.inboundSecret || randomBytes(24).toString("base64url")),
     savedAt: String(raw?.savedAt || ""),
   };
@@ -89,6 +93,7 @@ export function prune(state) {
   const now = Date.now();
   state.sessions = state.sessions.filter((s) => new Date(s.expiresAt).getTime() > now);
   state.tickets = state.tickets.filter((t) => new Date(t.expiresAt).getTime() > now);
+  state.vaultUnlocks = (state.vaultUnlocks || []).filter((s) => new Date(s.expiresAt).getTime() > now);
   return state;
 }
 
@@ -98,8 +103,6 @@ export function getBearer(req) {
   return m ? m[1] : "";
 }
 
-export const IDLE_MS = 5 * 60 * 1000;
-
 export function userFromRequest(req, state) {
   prune(state);
   const token = getBearer(req);
@@ -107,14 +110,6 @@ export function userFromRequest(req, state) {
   const hash = sha256Hex(token);
   const session = state.sessions.find((s) => s.tokenHash === hash);
   if (!session) return null;
-  if (session.lastSeenAt) {
-    const seen = Date.parse(session.lastSeenAt);
-    if (Number.isFinite(seen) && Date.now() - seen > IDLE_MS) {
-      state.sessions = state.sessions.filter((s) => s.tokenHash !== hash);
-      saveAuth(state);
-      return null;
-    }
-  }
   return state.users.find((u) => u.id === session.userId) || null;
 }
 
@@ -129,7 +124,7 @@ export function touchSession(req, state) {
   if (!Number.isFinite(prev) || Date.now() - prev > 20_000) saveAuth(state);
 }
 
-export function issueToken(state, userId, days = 7) {
+export function issueToken(state, userId, days = 365) {
   const token = randomBytes(32).toString("base64url");
   const expires = new Date(Date.now() + days * 86400000).toISOString();
   const others = state.sessions.filter((s) => s.userId !== userId);
@@ -239,10 +234,34 @@ export function verifyTotp(secretB32, code) {
   return false;
 }
 
-export function otpauthUrl(email, secret) {
-  const label = encodeURIComponent(`Socilet:${email}`);
+export function otpauthUrl(email, secret, labelName = "Socilet") {
+  const label = encodeURIComponent(`${labelName}:${email}`);
   const issuer = encodeURIComponent("Socilet CRM");
   return `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
+}
+
+export function vaultConfigured(state) {
+  return Boolean(state.vault?.totpEnabled && state.vault?.passwordHash && state.vault?.totpSecret);
+}
+
+export function getVaultUnlock(req, state) {
+  prune(state);
+  const raw = String(req.headers["x-vault-token"] || "");
+  if (!raw) return null;
+  const hash = sha256Hex(raw);
+  return (state.vaultUnlocks || []).find((s) => s.tokenHash === hash) || null;
+}
+
+export function issueVaultUnlock(state, userId) {
+  const token = randomBytes(32).toString("base64url");
+  state.vaultUnlocks = state.vaultUnlocks || [];
+  state.vaultUnlocks = state.vaultUnlocks.filter((s) => s.userId !== userId);
+  state.vaultUnlocks.push({
+    tokenHash: sha256Hex(token),
+    userId,
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+  });
+  return token;
 }
 
 const dummy = await makePassword("invalid-placeholder-password");

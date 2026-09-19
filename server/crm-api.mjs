@@ -2,6 +2,7 @@ import { randomUUID, createCipheriv, randomBytes, scryptSync } from "node:crypto
 import { json } from "./http-util.mjs";
 import { corsAndOptions, escapeHtml, guardOrigin, readJson } from "./security.mjs";
 import { requireApiUser } from "./auth-api.mjs";
+import { getVaultUnlock, loadAuth, prune, vaultConfigured } from "./auth-store.mjs";
 import { pickBestCopy, readJsonCopies, writeJsonCopies } from "./persist.mjs";
 
 function emptyFirm() {
@@ -119,7 +120,22 @@ function query(req) {
   }
 }
 
-export async function handleCrmRequest(req, res, env = process.env) {
+function credsLocked(req) {
+  const auth = prune(loadAuth());
+  if (!vaultConfigured(auth)) return false;
+  return !getVaultUnlock(req, auth);
+}
+
+function hideCreds(rows) {
+  return rows.filter((r) => r.module !== "service_credentials");
+}
+
+function rejectLockedCreds(req, res, module) {
+  if (module !== "service_credentials") return false;
+  if (!credsLocked(req)) return false;
+  json(res, 403, { error: "Unlock service credentials with password and 2FA" });
+  return true;
+}
   if (corsAndOptions(req, res, env)) return true;
   if (!guardOrigin(req, res, env)) return true;
 
@@ -152,8 +168,10 @@ export async function handleCrmRequest(req, res, env = process.env) {
 
     if (req.method === "GET" && path === "/api/crm/records") {
       const module = qs.get("module");
+      if (rejectLockedCreds(req, res, module)) return true;
       const state = loadState();
-      const rows = module ? state.records.filter((r) => r.module === module) : state.records;
+      let rows = module ? state.records.filter((r) => r.module === module) : state.records;
+      if (!module && credsLocked(req)) rows = hideCreds(rows);
       json(res, 200, { data: rows });
       return true;
     }
@@ -161,6 +179,7 @@ export async function handleCrmRequest(req, res, env = process.env) {
     if (req.method === "POST" && path === "/api/crm/records") {
       const input = await readJson(req, res);
       if (!input) return true;
+      if (rejectLockedCreds(req, res, String(input.module || ""))) return true;
       const state = loadState();
       const now = new Date().toISOString();
       const row = {
@@ -187,8 +206,10 @@ export async function handleCrmRequest(req, res, env = process.env) {
       const state = loadState();
       const incoming = Array.isArray(input.records) ? input.records : [];
       const byId = new Map(state.records.map((r) => [r.id, r]));
+      const locked = credsLocked(req);
       for (const row of incoming) {
         if (!row?.id || !row.module) continue;
+        if (locked && row.module === "service_credentials") continue;
         const prev = byId.get(row.id);
         if (!prev || String(row.updated_at || "") >= String(prev.updated_at || "")) {
           byId.set(row.id, row);
@@ -206,7 +227,7 @@ export async function handleCrmRequest(req, res, env = process.env) {
         }
       }
       saveState(state);
-      json(res, 200, { data: state.records, finance: state.settings.finance });
+      json(res, 200, { data: locked ? hideCreds(state.records) : state.records, finance: state.settings.finance });
       return true;
     }
 
@@ -220,6 +241,7 @@ export async function handleCrmRequest(req, res, env = process.env) {
         json(res, 404, { error: "Not found" });
         return true;
       }
+      if (rejectLockedCreds(req, res, existing.module)) return true;
       existing.data = input.data && typeof input.data === "object" ? input.data : existing.data;
       existing.updated_at = new Date().toISOString();
       saveState(state);
@@ -228,6 +250,8 @@ export async function handleCrmRequest(req, res, env = process.env) {
     }
     if (one && req.method === "DELETE") {
       const state = loadState();
+      const existing = state.records.find((r) => r.id === one[1]);
+      if (existing && rejectLockedCreds(req, res, existing.module)) return true;
       state.records = state.records.filter((r) => r.id !== one[1]);
       saveState(state);
       json(res, 200, { ok: true });
@@ -293,7 +317,8 @@ export async function handleCrmRequest(req, res, env = process.env) {
         return true;
       }
       const state = loadState();
-      json(res, 200, { records: state.records, settings: state.settings, savedAt: state.savedAt });
+      const records = credsLocked(req) ? hideCreds(state.records) : state.records;
+      json(res, 200, { records, settings: state.settings, savedAt: state.savedAt });
       return true;
     }
 

@@ -14,6 +14,7 @@ import { ClientsPage, ClientDetailPage } from "@/pages/ClientsPage";
 import { FollowUpsPage } from "@/pages/FollowUpsPage";
 import { GstPage } from "@/pages/GstPage";
 import { DocumentPrintPage, InvoicesPage, QuotationsPage } from "@/pages/DocumentsPages";
+import { ServiceCredentialsPage } from "@/pages/ServiceCredentialsPage";
 
 function Crud({ id }: { id: string }) {
   const m = MODULES.find((x) => x.id === id)!;
@@ -28,7 +29,7 @@ function LoginGate() {
   return <LoginPage />;
 }
 
-const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices"]);
+const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials"]);
 
 export function App() {
   return (
@@ -51,6 +52,7 @@ export function App() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/emails" element={<EmailsPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/service-credentials" element={<ServiceCredentialsPage />} />
           {MODULES.filter((m) => !SPECIAL.has(m.id)).map((m) => (
             <Route key={m.id} path={m.path} element={<Crud id={m.id} />} />
           ))}

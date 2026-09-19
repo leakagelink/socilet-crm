@@ -3,6 +3,7 @@ import { Capacitor } from "@capacitor/core";
 export const LIVE_ORIGIN = "https://crm.proofvault.space";
 
 const TOKEN_KEY = "socilet.token";
+const VAULT_KEY = "socilet.vault";
 
 export function apiUrl(path: string) {
   const p = path.startsWith("/") ? path : `/${path}`;
@@ -27,10 +28,27 @@ export function setToken(token: string | null) {
   }
 }
 
-export async function apiFetch(path: string, init?: RequestInit) {
+export function getVaultToken() {
+  try {
+    return sessionStorage.getItem(VAULT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setVaultToken(token: string | null) {
+  try {
+    if (!token) sessionStorage.removeItem(VAULT_KEY);
+    else sessionStorage.setItem(VAULT_KEY, token);
+  } catch {
+    /* ignore */
+  }
+}
   const headers = new Headers(init?.headers);
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  const vault = getVaultToken();
+  if (vault) headers.set("X-Vault-Token", vault);
   if (init?.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   const res = await fetch(apiUrl(path), { ...init, headers });
   if (

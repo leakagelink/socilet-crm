@@ -1,8 +1,14 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ModuleDef } from "@/lib/modules";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
+
+function money(v: unknown) {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export function RecordForm({
   module,
@@ -15,6 +21,10 @@ export function RecordForm({
   onSubmit: (values: Record<string, unknown>) => Promise<void> | void;
   submitting?: boolean;
 }) {
+  const autoRemain = module.fields.some((f) => f.name === "remaining_amount") &&
+    module.fields.some((f) => f.name === "total_amount") &&
+    module.fields.some((f) => f.name === "advance_amount");
+
   const form = useForm<Record<string, unknown>>({
     resolver: zodResolver(module.schema) as never,
     defaultValues: Object.fromEntries(
@@ -29,19 +39,32 @@ export function RecordForm({
     ),
   });
 
+  const total = form.watch("total_amount");
+  const advance = form.watch("advance_amount");
+
+  useEffect(() => {
+    if (!autoRemain) return;
+    form.setValue("remaining_amount", Math.max(0, money(total) - money(advance)), { shouldValidate: true });
+  }, [autoRemain, total, advance, form]);
+
   return (
     <form
       className="grid gap-3 pb-2"
       onSubmit={form.handleSubmit(async (v) => {
+        if (autoRemain) {
+          v.remaining_amount = Math.max(0, money(v.total_amount) - money(v.advance_amount));
+        }
         await onSubmit(v);
       })}
     >
       {module.fields.map((f) => {
         const err = form.formState.errors[f.name]?.message as string | undefined;
+        const derived = autoRemain && f.name === "remaining_amount";
         return (
           <div key={f.name} className="grid gap-1">
             <Label htmlFor={f.name}>
               {f.label}
+              {derived ? <span className="ml-1 text-paper/40">(auto)</span> : null}
               {f.optional ? <span className="ml-1 text-paper/40">(optional)</span> : null}
             </Label>
             {f.kind === "textarea" ? (
@@ -65,6 +88,8 @@ export function RecordForm({
                 id={f.name}
                 type={f.kind === "number" ? "number" : f.kind === "date" ? "date" : "text"}
                 step={f.kind === "number" ? "1" : undefined}
+                readOnly={derived}
+                className={derived ? "cursor-not-allowed opacity-80" : undefined}
                 {...form.register(f.name, { valueAsNumber: f.kind === "number" })}
               />
             )}

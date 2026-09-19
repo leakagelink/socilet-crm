@@ -19,6 +19,12 @@ import { Input, Label } from "@/components/ui/input";
 import { PageHeader } from "@/components/PageHeader";
 import { listAllRecords, mergeRecords } from "@/lib/db";
 import { downloadText } from "@/lib/tableTools";
+import {
+  enrollFingerprint,
+  fingerprintAvailable,
+  fingerprintEnabled,
+  setFingerprintEnabled,
+} from "@/lib/biometrics";
 
 export function AccountPage() {
   const { session, setSession } = useAuth();
@@ -79,6 +85,8 @@ export function AccountPage() {
           </p>
         </Card>
       ) : null}
+
+      <FingerprintCard onMsg={flash} onErr={(m) => { setMsg(null); setErr(m); }} email={session?.email || ""} />
 
       {session?.role === "admin" ? (
         <>
@@ -384,6 +392,67 @@ export function AccountPage() {
         </>
       ) : null}
     </div>
+  );
+}
+
+function FingerprintCard({
+  email,
+  onMsg,
+  onErr,
+}: {
+  email: string;
+  onMsg: (s: string) => void;
+  onErr: (s: string) => void;
+}) {
+  const [on, setOn] = useState(fingerprintEnabled);
+  const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void fingerprintAvailable().then(setOk);
+  }, []);
+  return (
+    <Card className="grid gap-3">
+      <h2 className="font-semibold">Fingerprint unlock</h2>
+      <p className="text-sm text-paper/60">
+        On karne ke baad app fingerprint se khulegi. 5 fail ke baad password + 2FA se login. Idle auto-logout band hai — sirf Sign out se logout.
+      </p>
+      {!ok ? (
+        <p className="text-sm text-amber-200">Is device par fingerprint / biometric nahi mila.</p>
+      ) : on ? (
+        <>
+          <p className="text-sm text-mint">Fingerprint on hai.</p>
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              setFingerprintEnabled(false);
+              setOn(false);
+              onMsg("Fingerprint unlock off.");
+            }}
+          >
+            Turn off fingerprint
+          </Button>
+        </>
+      ) : (
+        <Button
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await enrollFingerprint(email);
+              setOn(true);
+              onMsg("Fingerprint set. Ab app fingerprint se unlock hogi.");
+            } catch (e) {
+              onErr(e instanceof Error ? e.message : "Could not set fingerprint");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Set fingerprint
+        </Button>
+      )}
+    </Card>
   );
 }
 

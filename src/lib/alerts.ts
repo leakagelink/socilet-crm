@@ -110,7 +110,7 @@ export async function collectAlerts(): Promise<AlertItem[]> {
       const start = ts(row.data.start_date);
       if (status === "done" || status === "completed" || status === "paused" || start == null) return null;
       if (start > today + 86400000) return null;
-      if (status !== "planned" && status !== "active") return null;
+      if (status !== "planned" && status !== "active" && status !== "running") return null;
       const starting = start >= today && start < today + 86400000;
       if (!starting && status !== "planned") return null;
       return {

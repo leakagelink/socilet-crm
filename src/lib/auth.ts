@@ -1,4 +1,4 @@
-import { apiJson, getToken, setToken } from "@/lib/apiBase";
+import { apiJson, getToken, setToken, setVaultToken } from "@/lib/apiBase";
 import type { RoleName } from "@/lib/db";
 
 const KEY = "socilet.session";
@@ -102,6 +102,7 @@ export async function signOut() {
   }
   setToken(null);
   writeSession(null);
+  setVaultToken(null);
 }
 
 export async function changePassword(currentPassword: string, newPassword: string, code?: string) {
@@ -176,4 +177,32 @@ export async function disableTwoFactor(currentPassword: string, code: string) {
   const session = toSession(data.user);
   writeSession(session);
   return session;
+}
+
+export async function vaultStatus() {
+  return apiJson<{ configured: boolean; unlocked: boolean }>("/api/auth/vault/status");
+}
+
+export async function vaultSetup(password: string) {
+  return apiJson<{ ticket: string; secret: string; otpauth: string }>("/api/auth/vault/setup", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}
+
+export async function vaultEnable(ticket: string, code: string) {
+  const data = await apiJson<{ token?: string }>("/api/auth/vault/enable", {
+    method: "POST",
+    body: JSON.stringify({ ticket, code }),
+  });
+  if (data.token) setVaultToken(data.token);
+}
+
+export async function vaultUnlock(password: string, code: string) {
+  const data = await apiJson<{ token?: string }>("/api/auth/vault/unlock", {
+    method: "POST",
+    body: JSON.stringify({ password, code }),
+  });
+  if (!data.token) throw new Error("Unlock failed");
+  setVaultToken(data.token);
 }
