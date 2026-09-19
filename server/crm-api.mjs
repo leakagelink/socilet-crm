@@ -136,6 +136,8 @@ function rejectLockedCreds(req, res, module) {
   json(res, 403, { error: "Unlock service credentials with password and 2FA" });
   return true;
 }
+
+export async function handleCrmRequest(req, res, env = process.env) {
   if (corsAndOptions(req, res, env)) return true;
   if (!guardOrigin(req, res, env)) return true;
 
