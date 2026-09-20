@@ -21,6 +21,7 @@ const DESIGNER = [
   "/workspaces",
   "/meetings",
   "/reminders",
+  "/activity",
   "/notifications",
   "/account",
 ];
@@ -45,6 +46,7 @@ const ACCOUNTANT = [
   "/payment-methods",
   "/analytics",
   "/gst",
+  "/activity",
   "/reminders",
   "/notifications",
   "/account",

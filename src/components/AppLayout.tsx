@@ -34,6 +34,7 @@ import {
   Users,
   Landmark,
   PhoneCall,
+  History,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -83,6 +84,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/clients": Users,
   "/follow-ups": PhoneCall,
   "/gst": Landmark,
+  "/activity": History,
 };
 
 const groups = [
@@ -108,7 +110,7 @@ const groups = [
   },
   {
     name: "Ops",
-    paths: ["/emails", "/email-setup", "/notifications", "/reminders", "/service-credentials", "/contact-messages", "/blocked-messages", "/account"],
+    paths: ["/emails", "/email-setup", "/notifications", "/reminders", "/activity", "/service-credentials", "/contact-messages", "/blocked-messages", "/account"],
   },
 ];
 
@@ -118,6 +120,7 @@ const titles: Record<string, string> = {
   "/email-setup": "Email setup",
   "/follow-ups": "Follow-ups",
   "/gst": "GST",
+  "/activity": "Activity",
   "/cosmofeed-analytics": "Cosmofeed analytics",
   "/cosmofeed-compare": "Cosmofeed compare",
   "/invoices/new": "New invoice",

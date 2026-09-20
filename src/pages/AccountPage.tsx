@@ -30,6 +30,7 @@ export function AccountPage() {
   const { session, setSession } = useAuth();
   const qc = useQueryClient();
   const backupRef = useRef<HTMLInputElement>(null);
+  const restoreEncRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -357,6 +358,38 @@ export function AccountPage() {
           <Button variant="outline" onClick={() => backupRef.current?.click()}>
             Import JSON
           </Button>
+          <Button variant="outline" onClick={() => restoreEncRef.current?.click()}>
+            Restore encrypted backup
+          </Button>
+          <input
+            ref={restoreEncRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              try {
+                const parsed = JSON.parse(await file.text()) as Record<string, unknown>;
+                const { apiJson } = await import("@/lib/apiBase");
+                const res = await apiJson<{ restored?: number; data?: { id: string; module: string; data: Record<string, unknown>; created_at: string; updated_at: string }[] }>(
+                  "/api/crm/backup/restore",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(parsed),
+                  },
+                );
+                if (res.data?.length) await mergeRecords(res.data);
+                await qc.invalidateQueries();
+                flash(`Restored ${res.restored ?? res.data?.length ?? 0} rows from encrypted backup.`);
+              } catch (er) {
+                setMsg(null);
+                setErr(er instanceof Error ? er.message : "Restore failed — wrong file or backup key.");
+              }
+            }}
+          />
           <input
             ref={backupRef}
             type="file"

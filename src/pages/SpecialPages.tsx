@@ -4,8 +4,9 @@ import { Card } from "@/components/ui/card";
 import { ModuleCrud } from "@/pages/ModuleCrud";
 import { MODULES, moduleById } from "@/lib/modules";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { BarChart, DistributionDonut, DonutChart, MonthlyBarChart, MonthlyLineChart } from "@/components/charts";
+import { AvailableBalanceEditor } from "@/components/AvailableBalanceEditor";
 import { PageHeader } from "@/components/PageHeader";
 import { listRecords } from "@/lib/db";
 import { Link } from "react-router-dom";
@@ -28,6 +29,7 @@ import {
   BarChart3,
   LineChart,
   PieChart,
+  TrendingUp,
 } from "lucide-react";
 
 export function DashboardPage() {
@@ -36,7 +38,7 @@ export function DashboardPage() {
   const counts = useQuery({
     queryKey: ["dash-counts"],
     queryFn: async () => {
-      const keys = ["projects", "tasks", "invoices", "reminders", "quotations"] as const;
+      const keys = ["projects", "tasks", "invoices", "reminders", "quotations", "investments"] as const;
       const pairs = await Promise.all(keys.map(async (k) => [k, (await listRecords(k)).length] as const));
       return Object.fromEntries(pairs) as Record<(typeof keys)[number], number>;
     },
@@ -45,7 +47,7 @@ export function DashboardPage() {
   const activity = useQuery({
     queryKey: ["dash-activity"],
     queryFn: async () => {
-      const keys = ["projects", "tasks", "invoices", "quotations", "reminders", "spends", "other_income"];
+      const keys = ["projects", "tasks", "invoices", "quotations", "reminders", "spends", "other_income", "investments"];
       const rows = (await Promise.all(keys.map(listRecords))).flat();
       return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
     },
@@ -58,6 +60,7 @@ export function DashboardPage() {
     ["Invoices", "/invoices", counts.data?.invoices ?? 0, Receipt],
     ["Quotes", "/quotations", counts.data?.quotations ?? 0, FileText],
     ["Reminders", "/reminders", counts.data?.reminders ?? 0, Clock],
+    ["Investments", "/investments", counts.data?.investments ?? 0, TrendingUp],
   ] as const;
 
   return (
@@ -65,19 +68,20 @@ export function DashboardPage() {
       <PageHeader
         kicker="Overview"
         title="Revenue dashboard"
-        description="Same breakdown as the old CRM: available = base + income − spends. Live poll every 30s."
+        description="Available = starting balance + har earning − spends. Project complete / payment se turant update."
       />
       {f.isLoading ? <Card>Loading balances…</Card> : null}
       {f.isError ? <Card className="text-red-300">Could not load finance.</Card> : null}
 
       {d ? (
-        <div className="stagger grid min-w-0 gap-3 sm:grid-cols-2 md:grid-cols-3">
+        <div className="stagger grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <HeroTile
             icon={Wallet}
             label="Available balance"
-            hint="Base + income − spends"
+            hint="Edit karo, phir earnings add hoti rahengi"
             value={d.available}
             className="bg-gradient-to-br from-violet-600/90 to-fuchsia-600/70"
+            extra={<AvailableBalanceEditor available={d.available} />}
           />
           <HeroTile
             icon={TrendingDown}
@@ -89,21 +93,29 @@ export function DashboardPage() {
           <HeroTile
             icon={Repeat}
             label="Monthly recurring"
-            hint="Active subscriptions"
-            value={d.monthlyRecurring}
+            hint="Collections received (plan in mix)"
+            value={d.recurringReceived}
             className="bg-gradient-to-br from-teal-500/90 to-cyan-600/70"
+          />
+          <HeroTile
+            icon={TrendingUp}
+            label="Investments"
+            hint="Current portfolio value"
+            value={d.investments}
+            className="bg-gradient-to-br from-indigo-600/90 to-sky-600/70"
           />
         </div>
       ) : null}
 
       {d ? (
-        <div className="stagger grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3 2xl:grid-cols-6">
+        <div className="stagger grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3 2xl:grid-cols-4">
           <StatTile icon={IndianRupee} label="Total revenue" hint="Received amount" value={d.totalRevenue} tone="text-mint" />
           <StatTile icon={Briefcase} label="Projects total" hint="All projects value" value={d.projectsTotal} tone="text-violet-300" />
           <StatTile icon={Hourglass} label="Pending" hint="Yet to receive" value={d.pending} tone="text-amber-300" />
           <StatTile icon={ShoppingBag} label="Digital sales" hint="Products sold" value={d.digitalSales} tone="text-fuchsia-300" />
           <StatTile icon={BadgePercent} label="Digital profit" hint="Net profit" value={d.digitalProfit} tone="text-sky-300" />
           <StatTile icon={Coins} label="Other income" hint="Miscellaneous" value={d.otherIncome} tone="text-orange-300" />
+          <StatTile icon={TrendingUp} label="Investments" hint="Parked capital (current)" value={d.investments} tone="text-indigo-500" />
         </div>
       ) : null}
 
@@ -145,7 +157,7 @@ export function DashboardPage() {
                 { label: "Other income", value: d.otherIncome, color: "#fb923c" },
                 { label: "Cosmofeed", value: d.cosmofeed, color: "#38bdf8" },
                 { label: "Projects", value: d.projectsTotal - d.pending, color: "#34d399" },
-                { label: "Recurring", value: d.monthlyRecurring, color: "#2dd4bf" },
+                { label: "Recurring", value: d.recurringReceived, color: "#2dd4bf" },
               ]}
             />
           ) : null}
@@ -160,7 +172,7 @@ export function DashboardPage() {
               items={[
                 { label: "Base", value: d.base, color: "#e8c36a" },
                 { label: "Income", value: d.totalIncome, color: "#7ddec9" },
-                { label: "Spends", value: d.totalSpends, color: "#e07a7a" },
+                { label: "Investments", value: d.investments, color: "#818cf8" },
               ]}
             />
           ) : null}
@@ -169,7 +181,9 @@ export function DashboardPage() {
           <h2 className="mb-3 font-display text-lg">Recent motion</h2>
           <div className="grid min-w-0 gap-2">
             {(activity.data ?? []).length === 0 ? (
-              <p className="text-sm text-paper/45">No rows yet — add a project, invoice, or spend and it shows here.</p>
+              <p className="text-sm text-paper/45">
+                No rows yet — <Link to="/activity" className="text-gold">activity log</Link> fills as staff save records.
+              </p>
             ) : (
               (activity.data ?? []).map((row) => {
                 const title = MODULES.find((m) => m.id === row.module)?.title ?? row.module;
@@ -189,7 +203,7 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <div className="stagger grid min-w-0 grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
+      <div className="stagger grid min-w-0 grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {tiles.map(([label, href, n, Icon]) => (
           <Link key={href} to={href} className="block min-w-0">
             <Card className="shine group min-w-0 p-3 transition duration-300 hover:-translate-y-1 hover:border-mint/35 sm:p-5">
@@ -214,12 +228,14 @@ function HeroTile({
   hint,
   value,
   className,
+  extra,
 }: {
   icon: typeof Wallet;
   label: string;
   hint: string;
   value: number;
   className: string;
+  extra?: ReactNode;
 }) {
   return (
     <div className={`shine relative min-w-0 overflow-hidden rounded-2xl p-3 text-white shadow-lg sm:p-5 ${className}`}>
@@ -231,6 +247,7 @@ function HeroTile({
         <AnimatedInr value={value} />
       </div>
       <div className="mt-1 truncate text-xs text-white/70">{hint}</div>
+      {extra ? <div className="mt-3">{extra}</div> : null}
     </div>
   );
 }

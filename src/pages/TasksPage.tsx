@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { DateChip, RemainingChip, StatusBadge } from "@/components/HighlightCell";
 import { cn } from "@/lib/utils";
@@ -41,18 +42,28 @@ export function TasksPage() {
   });
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <PageHeader kicker="Work" title="Tasks" description="Kanban — move cards between columns, or add a new task." />
-        <Button
-          onClick={() => {
-            setOpen(true);
-          }}
-        >
+    <div className="grid min-w-0 gap-4 sm:gap-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <PageHeader kicker="Work" title="Tasks" description="Kanban — cards move between columns, dashboard-style." />
+        <Button className="w-full sm:w-auto" onClick={() => setOpen(true)}>
           New task
         </Button>
       </div>
-      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks" />
+      <div className="stagger grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {COLS.map((col) => {
+          const n = (q.data ?? []).filter((r) => String(r.data.status) === col).length;
+          return (
+            <div key={col} className="shine rounded-2xl border border-gold/20 bg-gradient-to-br from-gold/15 to-panel p-4">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-paper/45">{col.replaceAll("_", " ")}</div>
+              <div className="mt-1 font-display text-2xl">{n}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-paper/35" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks" className="pl-9" />
+      </div>
       {q.isLoading ? <Card>Loading…</Card> : null}
       {q.isError ? <Card className="text-red-300">Could not load tasks.</Card> : null}
       {q.data && q.data.length === 0 ? <Card>No tasks. Add one to fill the board.</Card> : null}
@@ -60,7 +71,7 @@ export function TasksPage() {
         {COLS.map((col) => {
           const items = filtered.filter((r) => String(r.data.status) === col);
           return (
-            <div key={col} className="kanban-col rounded-2xl border border-gold/20 bg-panel/70 p-3">
+            <div key={col} className="kanban-col min-h-48 rounded-2xl border border-gold/20 bg-panel/80 p-3 shadow-[0_18px_40px_-28px_rgba(11,22,36,0.18)]">
               <div className="mb-2 flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-gold/80">
                 <StatusBadge value={col} />
                 <span className="rounded-full bg-gold/15 px-2 py-0.5 text-paper/70">{items.length}</span>

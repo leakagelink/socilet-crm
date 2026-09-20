@@ -29,6 +29,7 @@ export function matchRow(
     const blob = [
       row.id,
       ...module.fields.map((f) => cellText(row.data[f.name])),
+      JSON.stringify(row.data.payments ?? ""),
       row.created_at,
     ]
       .join(" ")

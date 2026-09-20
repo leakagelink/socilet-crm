@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import { apiJson, getToken } from "@/lib/apiBase";
 import { nowIso, uid } from "@/lib/utils";
+import { readSession } from "@/lib/auth";
 
 export type RoleName = "admin" | "designer" | "accountant";
 
@@ -201,9 +202,11 @@ export async function insertRecord(module: string, data: Record<string, unknown>
     });
     const saved = res.data ?? row;
     await db.records.put(saved);
+    await writeActivity("create", saved);
     return saved;
   }
   await db.records.add(row);
+  await writeActivity("create", row);
   return row;
 }
 
@@ -216,12 +219,14 @@ export async function updateRecord(id: string, data: Record<string, unknown>) {
     });
     if (!res.data) throw new Error("Not found");
     await db.records.put(res.data);
+    await writeActivity("update", res.data);
     return res.data;
   }
   const existing = await db.records.get(id);
   if (!existing) throw new Error("Not found");
   const next = { ...existing, data, updated_at: nowIso() };
   await db.records.put(next);
+  await writeActivity("update", next);
   return next;
 }
 
@@ -246,8 +251,42 @@ export async function listAllRecords() {
 }
 
 export async function deleteRecord(id: string) {
+  const existing = await db.records.get(id);
   if (await cloudLive()) {
     await apiJson(`/api/crm/records/${id}`, { method: "DELETE" });
   }
+  if (existing) await writeActivity("delete", existing);
   await db.records.delete(id);
+}
+
+async function writeActivity(action: string, row: RecordRow) {
+  if (row.module === "activity") return;
+  const actor = readSession();
+  const t = nowIso();
+  const act: RecordRow = {
+    id: uid(),
+    module: "activity",
+    data: {
+      actor: actor?.email || "unknown",
+      role: actor?.role || "",
+      action,
+      target: row.module,
+      record_id: row.id,
+      summary: `${action} ${row.module}: ${String(row.data?.name || row.data?.title || row.data?.invoice_no || row.data?.quote_no || row.id).slice(0, 80)}`,
+    },
+    created_at: t,
+    updated_at: t,
+  };
+  try {
+    if (await cloudLive()) {
+      await apiJson("/api/crm/records", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(act),
+      });
+    }
+    await db.records.put(act);
+  } catch {
+    /* ignore audit failures */
+  }
 }

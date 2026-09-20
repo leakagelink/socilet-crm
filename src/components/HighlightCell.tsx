@@ -79,6 +79,7 @@ export function ProjectCountdown({ data }: { data: Record<string, unknown> }) {
 export function HighlightCell({
   field,
   value,
+  row,
   moduleId,
 }: {
   field: FieldDef;
@@ -95,6 +96,11 @@ export function HighlightCell({
         {showRemain ? <RemainingChip value={value} /> : null}
       </div>
     );
+  }
+  if (field.name === "remaining_amount" && moduleId === "projects") {
+    const status = String(row.status || "").toLowerCase();
+    const n = status === "completed" || status === "done" ? 0 : typeof value === "number" ? value : Number(value);
+    return <span>{inr(Number.isFinite(n) ? n : 0)}</span>;
   }
   if (field.kind === "number") {
     return typeof value === "number" ? <span>{inr(value)}</span> : <span>{String(value ?? "")}</span>;

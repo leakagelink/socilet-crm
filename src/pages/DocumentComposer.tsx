@@ -11,6 +11,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { uid } from "@/lib/utils";
+import { FileAttachments } from "@/components/FileAttachments";
+import { parseAttachments, type Attachment } from "@/lib/attachments";
 import { clientMatch } from "@/lib/pipeline";
 
 function str(v: unknown) {
@@ -73,6 +75,7 @@ export function DocumentComposer({ kind }: { kind: Kind }) {
   const [notes, setNotes] = useState("");
   const [number, setNumber] = useState("");
   const [status, setStatus] = useState(kind === "quote" ? "draft" : "due");
+  const [files, setFiles] = useState<Attachment[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -103,11 +106,13 @@ export function DocumentComposer({ kind }: { kind: Kind }) {
       setNotes(str(row.data.notes));
       setStatus(str(row.data.status) || status);
       setTemplate(str(row.data.template) || "classic");
+      setFiles(parseAttachments(row.data.attachments));
       const named = data.pays.find((p) => p.id === str(row.data.payment_method_id) || payLabel(p) === str(row.data.payment_method));
       setPayId(named?.id || pay?.id || "");
     } else {
       setNumber(`${kind === "quote" ? "QT" : "INV"}-${Date.now().toString(36).toUpperCase()}`);
       setPayId(pay?.id || "");
+      setFiles([]);
       const d = new Date();
       d.setDate(d.getDate() + 14);
       if (kind === "invoice") setDue(d.toISOString().slice(0, 10));
@@ -206,6 +211,7 @@ export function DocumentComposer({ kind }: { kind: Kind }) {
         payment_method_id: pay?.id || "",
         payment_details: pay ? paySnapshot(pay) : "",
         share_token: str(pack.data?.row?.data.share_token) || uid(),
+        attachments: files,
       };
       if (kind === "invoice") {
         payload.invoice_no = number;
@@ -383,6 +389,7 @@ export function DocumentComposer({ kind }: { kind: Kind }) {
           <Field label="Notes">
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
+          <FileAttachments files={files} onChange={setFiles} />
         </Card>
 
         {save.isError ? <p className="text-sm text-red-400">{save.error.message}</p> : null}
