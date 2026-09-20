@@ -12,6 +12,8 @@ import {
   Repeat,
   Wallet,
   Radio,
+  GitCompare,
+  PieChart,
   TrendingDown,
   LineChart,
   Scale,
@@ -27,6 +29,7 @@ import {
   MessageSquare,
   Video,
   Folder,
+  Settings2,
   Shield,
   Users,
   Landmark,
@@ -34,12 +37,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { OverlayPortal } from "@/components/ui/overlay-portal";
 import { MODULES } from "@/lib/modules";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { restoreMailboxesToServer } from "@/lib/mailboxStore";
+import { countUnseenMail } from "@/lib/unreadMail";
 import { cn } from "@/lib/utils";
 import { canAccess, type RoleName } from "@/lib/roles";
 
@@ -56,12 +61,15 @@ const ICONS: Record<string, LucideIcon> = {
   "/other-income": Wallet,
   "/cosmofeed": Radio,
   "/cosmofeed-products": Store,
+  "/cosmofeed-analytics": PieChart,
+  "/cosmofeed-compare": GitCompare,
   "/spends": TrendingDown,
   "/investments": LineChart,
   "/balance-tracker": Scale,
   "/payment-methods": CreditCard,
   "/analytics": BarChart3,
   "/emails": Mail,
+  "/email-setup": Settings2,
   "/notifications": Bell,
   "/reminders": Clock,
   "/service-credentials": KeyRound,
@@ -86,6 +94,8 @@ const groups = [
       "/other-income",
       "/cosmofeed",
       "/cosmofeed-products",
+      "/cosmofeed-analytics",
+      "/cosmofeed-compare",
       "/spends",
       "/investments",
       "/balance-tracker",
@@ -96,15 +106,20 @@ const groups = [
   },
   {
     name: "Ops",
-    paths: ["/emails", "/notifications", "/reminders", "/service-credentials", "/contact-messages", "/blocked-messages", "/account"],
+    paths: ["/emails", "/email-setup", "/notifications", "/reminders", "/service-credentials", "/contact-messages", "/blocked-messages", "/account"],
   },
 ];
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
   "/account": "Account",
+  "/email-setup": "Email setup",
   "/follow-ups": "Follow-ups",
   "/gst": "GST",
+  "/cosmofeed-analytics": "Cosmofeed analytics",
+  "/cosmofeed-compare": "Cosmofeed compare",
+  "/invoices/new": "New invoice",
+  "/quotations/new": "New quotation",
   ...Object.fromEntries(MODULES.map((m) => [m.path, m.title])),
 };
 
@@ -132,13 +147,14 @@ function NavList({ onGo }: { onGo?: () => void }) {
                     cn(
                       "group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] transition duration-200",
                       isActive
-                        ? "bg-gradient-to-r from-gold/20 to-gold/5 text-gold shadow-[inset_2px_0_0_#e8c36a]"
-                        : "text-paper/65 hover:bg-white/5 hover:text-paper",
+                        ? "bg-gradient-to-r from-gold/25 to-gold/5 text-gold shadow-[inset_2px_0_0_#e8c36a]"
+                        : "text-paper/65 hover:translate-x-0.5 hover:bg-gold/8 hover:text-gold",
                     )
                   }
                 >
                   <Icon className="h-4 w-4 opacity-80" />
                   {titles[path] ?? path}
+                  {path === "/emails" ? <NavMailBadge /> : null}
                 </NavLink>
               );
             })}
@@ -177,7 +193,7 @@ function BottomBar({ onMore }: { onMore: () => void }) {
   const tabs = (BOTTOM_TABS[role] ?? BOTTOM_TABS.admin).filter((path) => canAccess(role, path));
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-white/10 bg-panel/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_40px_-24px_rgba(0,0,0,0.9)] backdrop-blur-md print:hidden lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-gold/20 bg-panel/95 pb-[var(--sab)] pl-[var(--sal)] pr-[var(--sar)] shadow-[0_-12px_40px_-24px_rgba(232,195,106,0.25)] backdrop-blur-md print:hidden lg:hidden"
       aria-label="Main"
     >
       {tabs.map((path) => {
@@ -189,10 +205,11 @@ function BottomBar({ onMore }: { onMore: () => void }) {
             to={path}
             end={path === "/"}
             className={cn(
-              "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-[10px] font-medium",
-              on ? "text-gold" : "text-paper/50",
+              "relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-[10px] font-medium transition duration-200",
+              on ? "text-gold" : "text-paper/50 hover:text-gold/80",
             )}
           >
+            {on ? <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-gold shadow-[0_0_12px_#e8c36a]" /> : null}
             <Icon className={cn("h-5 w-5", on ? "opacity-100" : "opacity-70")} />
             <span className="max-w-full truncate">{BOTTOM_LABELS[path] ?? titles[path]}</span>
           </NavLink>
@@ -228,6 +245,79 @@ function ClockLabel() {
   );
 }
 
+function UnreadBadge({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <span className="ml-auto min-w-5 rounded-full bg-gold px-1.5 py-0.5 text-center text-[10px] font-bold text-ink">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+function useUnseenMail() {
+  const { session } = useAuth();
+  return useQuery({
+    queryKey: ["unseen-mail"],
+    queryFn: countUnseenMail,
+    refetchInterval: 30_000,
+    enabled: Boolean(session) && canAccess(session?.role as RoleName | undefined, "/emails"),
+  });
+}
+
+function QuickDock({ compact = false, onGo }: { compact?: boolean; onGo?: () => void }) {
+  const { session } = useAuth();
+  const loc = useLocation();
+  const role = session?.role as RoleName | undefined;
+  const unseen = useUnseenMail();
+  const items = [
+    { path: "/spends", label: "Spends" },
+    { path: "/emails", label: "Emails" },
+  ].filter((item) => canAccess(role, item.path));
+  if (!items.length) return null;
+  return (
+    <div className={cn("grid gap-1", compact ? "" : "px-0")}>
+      {!compact ? <div className="mb-1 px-3 text-[10px] uppercase tracking-[0.2em] text-paper/30">Quick</div> : null}
+      {items.map((item) => {
+        const Icon = ICONS[item.path] ?? LayoutDashboard;
+        const on = tabActive(item.path, loc.pathname);
+        const mailCount = item.path === "/emails" ? unseen.data ?? 0 : 0;
+        return (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            onClick={onGo}
+            className={cn(
+              "relative flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-[13px] font-medium transition",
+              compact ? "h-12 w-12 justify-center px-0" : "",
+              on ? "bg-gradient-to-r from-gold/25 to-gold/5 text-gold" : "bg-gold/8 text-paper/80 hover:bg-gold/15 hover:text-gold",
+            )}
+            aria-label={mailCount ? `${item.label}, ${mailCount} unread` : item.label}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {compact ? null : <span className="min-w-0 truncate">{item.label}</span>}
+            {item.path === "/emails" ? (
+              compact ? (
+                mailCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-gold px-1 text-[9px] font-bold text-ink">
+                    {mailCount > 9 ? "9+" : mailCount}
+                  </span>
+                ) : null
+              ) : (
+                <UnreadBadge count={mailCount} />
+              )
+            ) : null}
+          </NavLink>
+        );
+      })}
+    </div>
+  );
+}
+
+function NavMailBadge() {
+  const unseen = useUnseenMail();
+  return <UnreadBadge count={unseen.data ?? 0} />;
+}
+
 export function AppLayout() {
   const { session, signOut } = useAuth();
   const navigate = useNavigate();
@@ -241,31 +331,37 @@ export function AppLayout() {
   }, []);
   return (
     <div className="min-h-full min-w-0 lg:grid lg:grid-cols-[248px_1fr]">
-      <aside className="glass hidden border-r border-white/8 p-4 lg:sticky lg:top-0 lg:block lg:h-screen lg:overflow-y-auto">
+      <aside className="glass hidden border-r border-gold/15 p-4 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <div className="mb-7 flex items-center gap-3 px-1">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-gold to-[#c9a24a] font-display text-lg text-ink shadow-[0_8px_24px_rgba(232,195,106,0.35)]">
-            S
-          </div>
+          <img src="/socilet-logo.svg" alt="" className="brand-mark h-11 w-11 rounded-2xl ring-1 ring-gold/40" />
           <div>
             <div className="text-[10px] uppercase tracking-[0.24em] text-gold/80">Socilet</div>
             <div className="font-display text-xl leading-none">CRM</div>
           </div>
         </div>
-        <NavList />
+        <div className="my-auto py-3">
+          <QuickDock />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <NavList />
+        </div>
       </aside>
       <div className="flex min-h-full min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex min-w-0 items-center justify-between gap-2 border-b border-white/8 bg-panel px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+        <header className="sticky top-0 z-30 flex min-h-12 min-w-0 items-center justify-between gap-2 border-b border-gold/15 bg-panel/90 pb-2.5 pl-[max(0.75rem,var(--sal))] pr-[max(0.75rem,var(--sar))] pt-[calc(var(--sat)+0.65rem)] backdrop-blur-md sm:gap-3 sm:pb-3 sm:pl-4 sm:pr-4 sm:pt-[calc(var(--sat)+0.75rem)]">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <OverlayPortal open={open} onClose={() => setOpen(false)}>
               <div className="fixed inset-0 z-50 lg:hidden">
                 <button type="button" aria-label="Close menu" className="absolute inset-0 bg-black/55" onClick={() => setOpen(false)} />
-                <div className="sheet-scroll absolute inset-y-0 left-0 z-10 w-[min(18rem,88vw)] overflow-y-auto border-r border-line bg-panel p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <div className="sheet-scroll absolute inset-y-0 left-0 z-10 w-[min(18rem,88vw)] overflow-y-auto border-r border-line bg-panel p-4 pb-[max(1rem,var(--sab))] pt-[calc(var(--sat)+1rem)] pl-[max(1rem,var(--sal))]">
                   <div className="mb-4 text-sm text-gold">Modules</div>
                   <NavList onGo={() => setOpen(false)} />
                 </div>
               </div>
             </OverlayPortal>
-            <span className="lg:hidden font-display text-base">Socilet</span>
+            <span className="lg:hidden flex items-center gap-2 font-display text-base">
+              <img src="/socilet-logo.svg" alt="" className="h-8 w-8 rounded-xl ring-1 ring-gold/35" />
+              Socilet
+            </span>
             <ClockLabel />
           </div>
           <div className="flex shrink-0 items-center gap-2 text-sm sm:gap-3">
@@ -287,7 +383,10 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        <main key={loc.pathname} className="page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:p-4 md:p-8 lg:pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <nav className="fixed left-[max(0.5rem,var(--sal))] top-1/2 z-30 -translate-y-1/2 print:hidden lg:hidden" aria-label="Spends and email">
+          <QuickDock compact />
+        </nav>
+        <main key={loc.pathname} className="page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[calc(4.5rem+var(--sab))] pl-[max(4rem,calc(3.5rem+var(--sal)))] sm:p-4 sm:pl-16 md:p-8 md:pl-16 lg:pb-[max(1.25rem,var(--sab))] lg:pl-8">
           <Outlet />
         </main>
         <BottomBar onMore={() => setOpen(true)} />

@@ -1,26 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Inbox, MailPlus, PenLine, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Inbox, PenLine, Send, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { insertRecord } from "@/lib/db";
-import { apiFetch } from "@/lib/apiBase";
-import { forgetMailbox, rememberMailbox } from "@/lib/mailboxStore";
+import { emailApi, mailboxQuery, type Mailbox } from "@/lib/emailClient";
+import { markMailSeen, mailIsUnseen } from "@/lib/unreadMail";
 import { cn } from "@/lib/utils";
-
-type Mailbox = {
-  id: string;
-  label: string;
-  from: string;
-  domain: string;
-  keyHint: string;
-  connected: boolean;
-  lastError?: string | null;
-};
+import { Link, useSearchParams } from "react-router-dom";
 
 type BoxItem = {
   id: string;
@@ -36,12 +27,6 @@ const composeSchema = z.object({
   body: z.string().trim().min(1, "Required"),
 });
 
-const boxSchema = z.object({
-  label: z.string().trim().min(1, "Required"),
-  from: z.string().trim().min(3).refine((v) => v.includes("@"), "Use name@your-domain"),
-  apiKey: z.string().trim().min(8).refine((v) => v.startsWith("re_"), "Resend keys start with re_"),
-});
-
 const ACCENTS = ["#e8c36a", "#7ddec9", "#93c5fd", "#f0abfc", "#fdba74", "#a5b4fc"];
 
 function accentFor(id: string) {
@@ -51,17 +36,7 @@ function accentFor(id: string) {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await apiFetch(path, init);
-  const raw = await res.text();
-  const type = res.headers.get("content-type") || "";
-  if (!type.includes("json")) {
-    throw new Error(
-      "Email server nahi chal raha. Live par Hostinger start command `node server.mjs` hona chahiye (sirf dist upload se /api/email nahi chalta). Local: npm run dev.",
-    );
-  }
-  const data = (raw ? JSON.parse(raw) : {}) as T & { error?: string };
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  return data;
+  return emailApi<T>(path, init);
 }
 
 function addr(v: string[] | string | undefined) {
@@ -70,9 +45,7 @@ function addr(v: string[] | string | undefined) {
 }
 
 function q(mailboxId: string, path: string) {
-  const u = new URL(path, window.location.origin);
-  if (mailboxId) u.searchParams.set("mailbox", mailboxId);
-  return u.pathname + u.search;
+  return mailboxQuery(mailboxId, path);
 }
 
 function when(iso?: string) {
@@ -84,10 +57,10 @@ function when(iso?: string) {
 
 export function EmailsPage() {
   const qc = useQueryClient();
+  const [params] = useSearchParams();
   const [tab, setTab] = useState<"inbox" | "sent">("inbox");
   const [openId, setOpenId] = useState<string | null>(null);
   const [mailboxId, setMailboxId] = useState("");
-  const [adding, setAdding] = useState(false);
   const [composing, setComposing] = useState(false);
   const [pane, setPane] = useState<"list" | "read">("list");
 
@@ -126,10 +99,18 @@ export function EmailsPage() {
     resolver: zodResolver(composeSchema),
     defaultValues: { to: "", subject: "", body: "" },
   });
-  const addForm = useForm({
-    resolver: zodResolver(boxSchema),
-    defaultValues: { label: "", from: "", apiKey: "" },
-  });
+
+  useEffect(() => {
+    if (params.get("compose") !== "1") return;
+    form.reset({
+      to: params.get("to") || "",
+      subject: params.get("subject") || "",
+      body: params.get("body") || "",
+    });
+    setOpenId(null);
+    setComposing(true);
+    setPane("read");
+  }, [params, form]);
 
   const send = useMutation({
     mutationFn: async (v: z.infer<typeof composeSchema>) => {
@@ -156,43 +137,6 @@ export function EmailsPage() {
     },
   });
 
-  const addBox = useMutation({
-    mutationFn: async (v: z.infer<typeof boxSchema>) => {
-      const data = await api<{ mailbox?: Mailbox }>("/api/email/mailboxes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(v),
-      });
-      if (!data.mailbox?.id) throw new Error("Mailbox connect fail: server ne mailbox id nahi bheji.");
-      await rememberMailbox({
-        id: data.mailbox.id,
-        label: v.label,
-        from: v.from,
-        apiKey: v.apiKey,
-      });
-      return data.mailbox;
-    },
-    onSuccess: (mailbox) => {
-      addForm.reset();
-      setAdding(false);
-      setMailboxId(mailbox.id);
-      setOpenId(null);
-      void qc.invalidateQueries({ queryKey: ["email-mailboxes"] });
-    },
-  });
-
-  const removeBox = useMutation({
-    mutationFn: async (id: string) => {
-      await api(`/api/email/mailboxes/${id}`, { method: "DELETE" });
-      await forgetMailbox(id);
-    },
-    onSuccess: () => {
-      setMailboxId("");
-      setOpenId(null);
-      void qc.invalidateQueries({ queryKey: ["email-mailboxes"] });
-    },
-  });
-
   const rows = tab === "inbox" ? inbox.data?.data ?? [] : sent.data?.data ?? [];
   const boxQ = tab === "inbox" ? inbox : sent;
   const preview = useMemo(() => {
@@ -216,6 +160,8 @@ export function EmailsPage() {
   }
 
   function openMail(id: string) {
+    markMailSeen(id);
+    void qc.invalidateQueries({ queryKey: ["unseen-mail"] });
     setOpenId(id);
     setComposing(false);
     setPane("read");
@@ -228,13 +174,15 @@ export function EmailsPage() {
           <p className="text-[11px] uppercase tracking-[0.2em] text-gold/80">Mail</p>
           <h1 className="text-2xl font-semibold tracking-tight">Inboxes</h1>
           <p className="mt-0.5 text-sm text-paper/55">
-            Har mailbox alag domain + Resend key. Switch karo — list, send, reply usi box ke rehte hain.
+            Connected accounts yahan dikhte hain. Naya box ya delete sirf Email setup se.
           </p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-          <Button className="flex-1 sm:flex-none" variant="outline" onClick={() => setAdding((v) => !v)}>
-            <MailPlus className="h-4 w-4" />
-            {adding ? "Close setup" : "Add mailbox"}
+          <Button className="flex-1 sm:flex-none" variant="outline" asChild>
+            <Link to="/email-setup">
+              <Settings2 className="h-4 w-4" />
+              Email setup
+            </Link>
           </Button>
           <Button className="flex-1 sm:flex-none" disabled={!activeId} onClick={startCompose}>
             <PenLine className="h-4 w-4" />
@@ -269,39 +217,14 @@ export function EmailsPage() {
         })}
         {mailboxes.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line px-4 py-3 text-sm text-paper/50">
-            Koi mailbox nahi. Add mailbox se pehla box connect karo.
+            Koi mailbox nahi.{" "}
+            <Link to="/email-setup" className="text-gold">
+              Email setup
+            </Link>{" "}
+            se connect karo.
           </div>
         ) : null}
       </div>
-
-      {adding ? (
-        <Card className="grid gap-3">
-          <div>
-            <h2 className="font-semibold text-gold">Connect a mailbox</h2>
-            <p className="text-xs text-paper/50">Resend verified domain + API key. Keys server par rehti hain, GitHub par nahi.</p>
-          </div>
-          <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={addForm.handleSubmit((v) => addBox.mutate(v))}>
-            <div className="grid gap-1">
-              <Label htmlFor="box-label">Name</Label>
-              <Input id="box-label" placeholder="Socilet" {...addForm.register("label")} />
-            </div>
-            <div className="grid gap-1 sm:col-span-2">
-              <Label htmlFor="box-from">From</Label>
-              <Input id="box-from" placeholder="Socilet &lt;hello@socilet.in&gt;" {...addForm.register("from")} />
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="box-key">Resend API</Label>
-              <Input id="box-key" type="password" autoComplete="off" placeholder="re_…" {...addForm.register("apiKey")} />
-            </div>
-            <div className="sm:col-span-2 lg:col-span-4">
-              <Button type="submit" disabled={addBox.isPending}>
-                {addBox.isPending ? "Connecting…" : "Connect mailbox"}
-              </Button>
-            </div>
-          </form>
-          {addBox.isError ? <p className="text-sm text-red-400">{addBox.error.message}</p> : null}
-        </Card>
-      ) : null}
 
       {active ? (
         <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-line/70 bg-panel/50 px-3 py-2 text-xs text-paper/55 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -310,12 +233,6 @@ export function EmailsPage() {
             <span className="mx-1 text-line">·</span>
             <span className="break-all">{active.from}</span>
           </span>
-          {active.id !== "env-default" ? (
-            <Button variant="ghost" size="sm" onClick={() => removeBox.mutate(active.id)}>
-              <Trash2 className="h-3.5 w-3.5" />
-              Remove
-            </Button>
-          ) : null}
         </div>
       ) : null}
 
@@ -356,11 +273,17 @@ export function EmailsPage() {
                   className={cn(
                     "w-full min-w-0 border-b border-line/60 px-3 py-3 text-left",
                     selected ? "bg-gold/10" : "hover:bg-ink/50",
+                    tab === "inbox" && mailIsUnseen(row.id) ? "font-semibold" : "",
                   )}
                 >
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-medium">{row.subject || "(no subject)"}</div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        {tab === "inbox" && mailIsUnseen(row.id) ? (
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-gold" />
+                        ) : null}
+                        <div className="truncate text-[13px] font-medium">{row.subject || "(no subject)"}</div>
+                      </div>
                       <div className="truncate text-[11px] text-paper/45">{tab === "inbox" ? row.from : addr(row.to)}</div>
                     </div>
                     <time className="shrink-0 whitespace-nowrap text-[10px] text-paper/35">{when(row.created_at)}</time>
@@ -429,7 +352,7 @@ export function EmailsPage() {
             </div>
           ) : (
             <div className="m-auto grid max-w-sm gap-3 p-8 text-center text-sm text-paper/50">
-              <p>{activeId ? "Kisi ko naya mail bhejne ke liye Compose kholo, ya left se ek message padho." : "Pehle mailbox connect karo."}</p>
+              <p>{activeId ? "Kisi ko naya mail bhejne ke liye Compose kholo, ya left se ek message padho." : "Pehle Email setup se mailbox connect karo."}</p>
               {activeId ? (
                 <Button className="mx-auto" onClick={startCompose}>
                   <PenLine className="h-4 w-4" />
@@ -445,7 +368,7 @@ export function EmailsPage() {
         <button
           type="button"
           onClick={startCompose}
-          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
+          className="fixed bottom-[calc(4.75rem+var(--sab))] right-[max(0.75rem,var(--sar))] z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-xl lg:hidden"
           aria-label="Compose mail"
         >
           <PenLine className="h-6 w-6" />

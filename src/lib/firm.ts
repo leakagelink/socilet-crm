@@ -8,6 +8,7 @@ export type FirmProfile = {
   address: string;
   phone: string;
   email: string;
+  logo_url: string;
 };
 
 const EMPTY: FirmProfile = {
@@ -17,6 +18,7 @@ const EMPTY: FirmProfile = {
   address: "",
   phone: "",
   email: "",
+  logo_url: "/socilet-logo.svg",
 };
 
 export async function loadFirm(): Promise<FirmProfile> {
@@ -37,6 +39,7 @@ export async function loadFirm(): Promise<FirmProfile> {
     address: String(row?.address || ""),
     phone: String(row?.phone || ""),
     email: String(row?.email || ""),
+    logo_url: String(row?.logo_url || EMPTY.logo_url),
   };
 }
 

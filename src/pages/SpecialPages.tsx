@@ -3,11 +3,8 @@ import { AnimatedInr } from "@/components/AnimatedInr";
 import { Card } from "@/components/ui/card";
 import { ModuleCrud } from "@/pages/ModuleCrud";
 import { MODULES, moduleById } from "@/lib/modules";
-import { setBaseBalance, setDesiredAvailable } from "@/lib/finance";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
 import { BarChart, DistributionDonut, DonutChart, MonthlyBarChart, MonthlyLineChart } from "@/components/charts";
 import { PageHeader } from "@/components/PageHeader";
 import { listRecords } from "@/lib/db";
@@ -262,54 +259,6 @@ function StatTile({
       </div>
       <div className="mt-1 truncate text-xs text-paper/40">{hint}</div>
     </Card>
-  );
-}
-
-export function BalanceTrackerPage() {
-  const module = moduleById("balance_tracker")!;
-  const f = useFinance();
-  const qc = useQueryClient();
-  const [base, setBase] = useState("");
-  const [desired, setDesired] = useState("");
-  return (
-    <ModuleCrud
-      module={module}
-      extra={
-        <Card className="grid gap-4 md:grid-cols-2">
-          <div className="grid gap-2">
-            <Label>Set base balance (INR)</Label>
-            <Input value={base} onChange={(e) => setBase(e.target.value)} type="number" />
-            <Button
-              onClick={async () => {
-                await setBaseBalance(Number(base));
-                await qc.invalidateQueries({ queryKey: ["finance"] });
-              }}
-            >
-              Save base
-            </Button>
-          </div>
-          <div className="grid gap-2">
-            <Label>Desired available (reverse)</Label>
-            <p className="text-xs text-paper/50">base_balance = desired − totalIncome + totalSpends</p>
-            <Input value={desired} onChange={(e) => setDesired(e.target.value)} type="number" />
-            <Button
-              variant="outline"
-              onClick={async () => {
-                await setDesiredAvailable(Number(desired));
-                await qc.invalidateQueries({ queryKey: ["finance"] });
-              }}
-            >
-              Solve base
-            </Button>
-          </div>
-          {f.data ? (
-            <div className="md:col-span-2 text-sm text-paper/70">
-              Available <AnimatedInr value={f.data.available} /> · base <AnimatedInr value={f.data.base} />
-            </div>
-          ) : null}
-        </Card>
-      }
-    />
   );
 }
 

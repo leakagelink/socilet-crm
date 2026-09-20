@@ -87,7 +87,7 @@ export function FingerprintLock() {
   if (!session || !locked) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] grid place-items-center bg-ink/95 p-6">
+    <div className="fixed inset-0 z-[80] grid place-items-center bg-ink/95 p-6 pt-[calc(var(--sat)+1.5rem)] pb-[calc(var(--sab)+1.5rem)]">
       <div className="grid w-full max-w-sm justify-items-center gap-4 text-center">
         <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gold/15 text-gold">
           <Fingerprint className="h-8 w-8" />

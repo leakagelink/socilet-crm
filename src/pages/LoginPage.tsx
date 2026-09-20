@@ -88,17 +88,19 @@ export function LoginPage() {
     <div className="relative grid min-h-full lg:grid-cols-2">
       <div className="relative hidden items-end p-10 lg:flex">
         <div className="orb pointer-events-none absolute -left-16 top-10 h-72 w-72 rounded-full bg-gold/20 blur-3xl" />
-        <div className="orb pointer-events-none absolute bottom-10 right-10 h-80 w-80 rounded-full bg-mint/15 blur-3xl" />
+        <div className="orb pointer-events-none absolute bottom-10 right-10 h-80 w-80 rounded-full bg-gold/15 blur-3xl" />
         <div className="grid-fade pointer-events-none absolute inset-0" />
         <div className="relative max-w-md">
+          <img src="/socilet-logo.svg" alt="Socilet" className="brand-mark mb-6 h-16 w-16 rounded-2xl ring-1 ring-gold/40" />
           <div className="text-[11px] uppercase tracking-[0.32em] text-gold">Socilet</div>
           <h1 className="font-display mt-3 text-5xl leading-tight">The ledger, dressed for night work.</h1>
           <p className="mt-4 text-sm text-paper/55">INR command deck for projects, mail, and cash. Admin, designer, and accountant logins.</p>
         </div>
       </div>
-      <div className="relative flex items-center justify-center p-4">
+      <div className="relative flex items-center justify-center p-4 pt-[calc(var(--sat)+1rem)] pb-[calc(var(--sab)+1rem)]">
         <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-gold/15 blur-3xl lg:hidden" />
-        <Card className="page-enter shine relative w-full max-w-md border-gold/25">
+        <Card className="page-enter shine relative w-full max-w-md border-gold/35">
+          <img src="/socilet-logo.svg" alt="" className="brand-mark mb-4 h-12 w-12 rounded-2xl ring-1 ring-gold/40 lg:hidden" />
           <div className="mb-1 text-[11px] uppercase tracking-[0.28em] text-gold">Socilet</div>
           <h1 className="font-display mb-2 text-3xl">{ticket ? "Two-factor code" : "Welcome back"}</h1>
           <p className="mb-6 text-sm text-paper/50">

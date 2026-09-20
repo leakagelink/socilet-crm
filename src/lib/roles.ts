@@ -37,6 +37,8 @@ const ACCOUNTANT = [
   "/other-income",
   "/cosmofeed",
   "/cosmofeed-products",
+  "/cosmofeed-analytics",
+  "/cosmofeed-compare",
   "/spends",
   "/investments",
   "/balance-tracker",
@@ -54,6 +56,8 @@ export function canAccess(role: RoleName | undefined, path: string) {
   const allowed = role === "designer" ? DESIGNER : role === "accountant" ? ACCOUNTANT : [];
   if (allowed.includes(path)) return true;
   if (path.startsWith("/clients/")) return allowed.includes("/clients");
+  if (path.startsWith("/invoices")) return allowed.includes("/invoices");
+  if (path.startsWith("/quotations")) return allowed.includes("/quotations");
   if (path.startsWith("/print/")) return allowed.includes("/invoices") || allowed.includes("/quotations");
   return false;
 }

@@ -6,7 +6,7 @@ import { getVaultUnlock, loadAuth, prune, vaultConfigured } from "./auth-store.m
 import { pickBestCopy, readJsonCopies, writeJsonCopies } from "./persist.mjs";
 
 function emptyFirm() {
-  return { legal_name: "Socilet", gstin: "", upi_id: "", address: "", phone: "", email: "" };
+  return { legal_name: "Socilet", gstin: "", upi_id: "", address: "", phone: "", email: "", logo_url: "/socilet-logo.svg" };
 }
 
 function emptyState() {
@@ -298,6 +298,7 @@ export async function handleCrmRequest(req, res, env = process.env) {
         address: String(input.address || ""),
         phone: String(input.phone || ""),
         email: String(input.email || ""),
+        logo_url: String(input.logo_url || "/socilet-logo.svg"),
       };
       saveState(state);
       json(res, 200, { data: state.settings.firm });

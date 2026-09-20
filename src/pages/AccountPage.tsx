@@ -463,6 +463,7 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [logo, setLogo] = useState("/socilet-logo.svg");
   useEffect(() => {
     void import("@/lib/firm").then(({ loadFirm }) =>
       loadFirm().then((f) => {
@@ -472,6 +473,7 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
         setAddress(f.address);
         setPhone(f.phone);
         setEmail(f.email);
+        setLogo(f.logo_url || "/socilet-logo.svg");
       }),
     );
   }, []);
@@ -502,6 +504,10 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
         <Input value={email} onChange={(e) => setEmail(e.target.value)} />
       </div>
       <div className="grid gap-1">
+        <Label>Logo URL</Label>
+        <Input value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="/socilet-logo.svg" />
+      </div>
+      <div className="grid gap-1">
         <Label>Address</Label>
         <Input value={address} onChange={(e) => setAddress(e.target.value)} />
       </div>
@@ -510,7 +516,7 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
         onClick={async () => {
           try {
             const { saveFirm } = await import("@/lib/firm");
-            await saveFirm({ legal_name: legal, gstin, upi_id: upi, address, phone, email });
+            await saveFirm({ legal_name: legal, gstin, upi_id: upi, address, phone, email, logo_url: logo || "/socilet-logo.svg" });
             onMsg("Firm details saved.");
           } catch (e) {
             onErr(e instanceof Error ? e.message : "Could not save firm");

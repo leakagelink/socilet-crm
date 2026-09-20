@@ -20,9 +20,14 @@ import {
 
 function visibleFields(module: ModuleDef) {
   const pinned = module.fields.filter((f) => f.name === "status" || DATE_FIELDS.has(f.name) || f.kind === "date");
-  const rest = module.fields.filter((f) => !pinned.includes(f)).slice(0, 6);
+  const prefer = ["quote_no", "invoice_no", "client", "project_name", "amount", "gst_amount", "payment_method", "template"];
+  const rest = module.fields.filter((f) => !pinned.includes(f));
+  const picked = [
+    ...rest.filter((f) => prefer.includes(f.name)),
+    ...rest.filter((f) => !prefer.includes(f.name)),
+  ].slice(0, 7);
   const seen = new Set<string>();
-  return [...pinned, ...rest].filter((f) => {
+  return [...pinned, ...picked].filter((f) => {
     if (seen.has(f.name)) return false;
     seen.add(f.name);
     return true;
@@ -34,11 +39,15 @@ export function ModuleCrud({
   extra,
   hideHeader,
   rowActions,
+  onNew,
+  onEdit,
 }: {
   module: ModuleDef;
   extra?: ReactNode;
   hideHeader?: boolean;
   rowActions?: (row: RecordRow) => ReactNode;
+  onNew?: () => void;
+  onEdit?: (row: RecordRow) => void;
 }) {
   const qc = useQueryClient();
   const q = useQuery({
@@ -69,6 +78,7 @@ export function ModuleCrud({
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["module", module.id] });
       await qc.invalidateQueries({ queryKey: ["finance"] });
+      await qc.invalidateQueries({ queryKey: ["balance-ledger"] });
       setOpen(false);
       setEditing(null);
     },
@@ -79,6 +89,7 @@ export function ModuleCrud({
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["module", module.id] });
       await qc.invalidateQueries({ queryKey: ["finance"] });
+      await qc.invalidateQueries({ queryKey: ["balance-ledger"] });
     },
   });
 
@@ -105,12 +116,14 @@ export function ModuleCrud({
       await mergeRecords(incoming);
       await qc.invalidateQueries({ queryKey: ["module", module.id] });
       await qc.invalidateQueries({ queryKey: ["finance"] });
+      await qc.invalidateQueries({ queryKey: ["balance-ledger"] });
       setNotice(`Imported ${incoming.length} ${module.title.toLowerCase()} row(s).`);
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Import failed");
     }
   }
 
+  const cols = visibleFields(module);
   const toolbar = (
     <div className="grid gap-3 rounded-2xl border border-white/10 bg-panel/50 p-3">
       <Input
@@ -182,6 +195,10 @@ export function ModuleCrud({
           <Button
             className="w-full sm:w-auto"
             onClick={() => {
+              if (onNew) {
+                onNew();
+                return;
+              }
               setEditing(null);
               setOpen(true);
             }}
@@ -194,6 +211,10 @@ export function ModuleCrud({
           <Button
             variant="outline"
             onClick={() => {
+              if (onNew) {
+                onNew();
+                return;
+              }
               setEditing(null);
               setOpen(true);
             }}
@@ -248,6 +269,10 @@ export function ModuleCrud({
                     size="sm"
                     className="flex-1"
                     onClick={() => {
+                      if (onEdit) {
+                        onEdit(row);
+                        return;
+                      }
                       setEditing(row);
                       setOpen(true);
                     }}
@@ -266,7 +291,7 @@ export function ModuleCrud({
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="bg-white/[0.04]">
                 <tr>
-                  {module.fields.map((f) => (
+                  {cols.map((f) => (
                     <th key={f.name} className="px-3 py-3 text-[11px] uppercase tracking-wide font-medium text-paper/50">
                       {f.label}
                     </th>
@@ -280,7 +305,7 @@ export function ModuleCrud({
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id} className="border-t border-white/6 transition hover:bg-gold/5">
-                    {module.fields.map((f) => (
+                    {cols.map((f) => (
                       <td key={f.name} className="max-w-48 px-3 py-3">
                         <HighlightCell field={f} value={row.data[f.name]} row={row.data} moduleId={module.id} />
                       </td>
@@ -295,6 +320,10 @@ export function ModuleCrud({
                         variant="ghost"
                         size="sm"
                         onClick={() => {
+                          if (onEdit) {
+                            onEdit(row);
+                            return;
+                          }
                           setEditing(row);
                           setOpen(true);
                         }}

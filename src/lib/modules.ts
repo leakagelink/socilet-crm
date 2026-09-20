@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export type FieldKind = "text" | "number" | "date" | "textarea" | "select" | "checkbox";
+export type FieldKind = "text" | "number" | "date" | "textarea" | "select" | "checkbox" | "lookup";
 
 export type FieldDef = {
   name: string;
@@ -8,6 +8,10 @@ export type FieldDef = {
   kind: FieldKind;
   options?: string[];
   optional?: boolean;
+  lookupModule?: string;
+  lookupLabel?: string;
+  fillFrom?: Record<string, string>;
+  showWhen?: { field: string; equals: string };
 };
 
 export type ModuleDef = {
@@ -28,6 +32,7 @@ function objectFrom(fields: FieldDef[]) {
     if (f.kind === "number") shape[f.name] = z.coerce.number().finite();
     else if (f.kind === "checkbox") shape[f.name] = z.coerce.boolean();
     else if (f.kind === "select" && f.options?.length) shape[f.name] = z.enum(f.options as [string, ...string[]]);
+    else if (f.kind === "lookup" && f.optional) shape[f.name] = z.string().trim();
     else if (f.optional) shape[f.name] = z.string().trim();
     else shape[f.name] = str();
   }
@@ -114,10 +119,18 @@ export const MODULES: ModuleDef[] = [
       { name: "client_id", label: "Client id", kind: "text", optional: true },
       { name: "client_email", label: "Client email", kind: "text", optional: true },
       { name: "client_phone", label: "Client phone", kind: "text", optional: true },
+      { name: "client_gstin", label: "Client GSTIN", kind: "text", optional: true },
+      { name: "client_address", label: "Client address", kind: "textarea", optional: true },
+      { name: "project_id", label: "Project id", kind: "text", optional: true },
+      { name: "project_name", label: "Project", kind: "text", optional: true },
+      { name: "item", label: "Line item", kind: "text", optional: true },
       { name: "amount", label: "Amount (INR)", kind: "number" },
       { name: "gst_amount", label: "GST (INR)", kind: "number" },
       { name: "status", label: "Status", kind: "select", options: ["draft", "sent", "accepted", "lost"] },
       { name: "valid_until", label: "Valid until", kind: "date", optional: true },
+      { name: "payment_method", label: "Payment method", kind: "text", optional: true },
+      { name: "payment_details", label: "Payment details", kind: "textarea", optional: true },
+      { name: "template", label: "Template", kind: "text", optional: true },
       { name: "invoice_id", label: "Invoice id", kind: "text", optional: true },
       { name: "share_token", label: "Share token", kind: "text", optional: true },
       { name: "notes", label: "Notes", kind: "textarea", optional: true },
@@ -160,11 +173,19 @@ export const MODULES: ModuleDef[] = [
       { name: "client_id", label: "Client id", kind: "text", optional: true },
       { name: "client_email", label: "Client email", kind: "text", optional: true },
       { name: "client_phone", label: "Client phone", kind: "text", optional: true },
+      { name: "client_gstin", label: "Client GSTIN", kind: "text", optional: true },
+      { name: "client_address", label: "Client address", kind: "textarea", optional: true },
+      { name: "project_id", label: "Project id", kind: "text", optional: true },
+      { name: "project_name", label: "Project", kind: "text", optional: true },
+      { name: "item", label: "Line item", kind: "text", optional: true },
       { name: "amount", label: "Amount (INR)", kind: "number" },
       { name: "gst_amount", label: "GST (INR)", kind: "number" },
       { name: "status", label: "Status", kind: "select", options: ["draft", "due", "paid", "void"] },
       { name: "due_date", label: "Due date", kind: "date" },
       { name: "paid_at", label: "Paid on", kind: "date", optional: true },
+      { name: "payment_method", label: "Payment method", kind: "text", optional: true },
+      { name: "payment_details", label: "Payment details", kind: "textarea", optional: true },
+      { name: "template", label: "Template", kind: "text", optional: true },
       { name: "quote_id", label: "Quote id", kind: "text", optional: true },
       { name: "share_token", label: "Share token", kind: "text", optional: true },
       { name: "notes", label: "Notes", kind: "textarea", optional: true },
@@ -234,7 +255,14 @@ export const MODULES: ModuleDef[] = [
     path: "/cosmofeed",
     description: "Storefront settlements",
     fields: [
-      { name: "product", label: "Product", kind: "text" },
+      {
+        name: "product",
+        label: "Product",
+        kind: "lookup",
+        lookupModule: "cosmofeed_products",
+        lookupLabel: "product",
+        fillFrom: { price: "price", gst_amount: "gst_amount" },
+      },
       { name: "amount", label: "Net (INR)", kind: "number" },
       { name: "price", label: "Price (INR)", kind: "number" },
       { name: "gst_amount", label: "GST (INR)", kind: "number" },
@@ -265,6 +293,15 @@ export const MODULES: ModuleDef[] = [
     fields: [
       { name: "title", label: "Title", kind: "text" },
       { name: "category", label: "Category", kind: "select", options: ["other", "tools", "food", "ad spend", "general", "software", "home", "domain", "petrol"] },
+      {
+        name: "ad_for",
+        label: "Ad spend for",
+        kind: "lookup",
+        lookupModule: "cosmofeed_products",
+        lookupLabel: "product",
+        optional: true,
+        showWhen: { field: "category", equals: "ad spend" },
+      },
       { name: "amount", label: "Amount (INR)", kind: "number" },
       { name: "date", label: "Date", kind: "date" },
       { name: "payment_method", label: "Payment method", kind: "select", options: ["UPI", "Card", "Bank", "Other"] },
@@ -292,7 +329,7 @@ export const MODULES: ModuleDef[] = [
     id: "balance_tracker",
     title: "Balance Tracker",
     path: "/balance-tracker",
-    description: "Base, income, spends, reverse desired cash",
+    description: "Filtered cash: projects, recurring, digital, other, cosmofeed, spends, transactions",
     fields: [
       { name: "note", label: "Note", kind: "text" },
       { name: "amount", label: "Adjustment (INR)", kind: "number" },
@@ -305,18 +342,26 @@ export const MODULES: ModuleDef[] = [
     path: "/payment-methods",
     description: "Banks and wallets",
     fields: [
-      { name: "name", label: "Name", kind: "text" },
-      { name: "type", label: "Type", kind: "select", options: ["bank", "upi", "card", "wallet"] },
-      { name: "last4", label: "Last 4", kind: "text" },
-      { name: "provider", label: "Provider", kind: "text" },
+      { name: "name", label: "Label", kind: "text" },
+      { name: "type", label: "Type", kind: "select", options: ["upi", "bank", "card", "wallet", "other"] },
+      { name: "upi_id", label: "UPI id", kind: "text", optional: true },
+      { name: "bank_name", label: "Bank", kind: "text", optional: true },
+      { name: "account_name", label: "Account name", kind: "text", optional: true },
+      { name: "account_number", label: "Account no", kind: "text", optional: true },
+      { name: "ifsc", label: "IFSC", kind: "text", optional: true },
+      { name: "provider", label: "Provider", kind: "text", optional: true },
+      { name: "last4", label: "Last 4", kind: "text", optional: true },
+      { name: "wallet_id", label: "Wallet id", kind: "text", optional: true },
+      { name: "details", label: "Details", kind: "textarea", optional: true },
+      { name: "is_default", label: "Default", kind: "checkbox" },
       { name: "active", label: "Active", kind: "checkbox" },
     ],
   }),
   def({
     id: "emails",
-    title: "Email setup",
+    title: "Emails",
     path: "/emails",
-    description: "Multiple Resend mailboxes — separate inbox/sent per domain",
+    description: "Inbox and sent for connected mailboxes",
     fields: [
       { name: "to_addr", label: "To", kind: "text" },
       { name: "subject", label: "Subject", kind: "text" },

@@ -1,13 +1,19 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { ModuleDef } from "@/lib/modules";
+import { useQuery } from "@tanstack/react-query";
+import type { FieldDef, ModuleDef } from "@/lib/modules";
+import { listRecords } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 
 function money(v: unknown) {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function lookupLabelOf(f: FieldDef) {
+  return f.lookupLabel || "product";
 }
 
 export function RecordForm({
@@ -21,7 +27,8 @@ export function RecordForm({
   onSubmit: (values: Record<string, unknown>) => Promise<void> | void;
   submitting?: boolean;
 }) {
-  const autoRemain = module.fields.some((f) => f.name === "remaining_amount") &&
+  const autoRemain =
+    module.fields.some((f) => f.name === "remaining_amount") &&
     module.fields.some((f) => f.name === "total_amount") &&
     module.fields.some((f) => f.name === "advance_amount");
 
@@ -31,7 +38,7 @@ export function RecordForm({
       module.fields.map((f) => {
         const d = defaults?.[f.name];
         if (d !== undefined) return [f.name, d];
-        if (f.kind === "number") return [f.name, 0];
+        if (f.kind === "number") return [f.name, f.name === "quantity" ? 1 : 0];
         if (f.kind === "checkbox") return [f.name, false];
         if (f.kind === "select") return [f.name, f.options?.[0] ?? ""];
         return [f.name, ""];
@@ -41,11 +48,55 @@ export function RecordForm({
 
   const total = form.watch("total_amount");
   const advance = form.watch("advance_amount");
+  const quantity = form.watch("quantity");
+  const product = form.watch("product");
+
+  const lookupMods = [...new Set(module.fields.filter((f) => f.kind === "lookup" && f.lookupModule).map((f) => f.lookupModule!))];
+  const catalogs = useQuery({
+    queryKey: ["lookups", lookupMods.join(",")],
+    queryFn: async () => {
+      const pairs = await Promise.all(lookupMods.map(async (id) => [id, await listRecords(id)] as const));
+      return Object.fromEntries(pairs);
+    },
+    enabled: lookupMods.length > 0,
+  });
 
   useEffect(() => {
     if (!autoRemain) return;
     form.setValue("remaining_amount", Math.max(0, money(total) - money(advance)), { shouldValidate: true });
   }, [autoRemain, total, advance, form]);
+
+  useEffect(() => {
+    if (module.id !== "cosmofeed") return;
+    const rows = catalogs.data?.cosmofeed_products ?? [];
+    const name = String(product || "");
+    const row = rows.find((r) => String(r.data.product || "") === name);
+    if (!row) return;
+    const qty = Math.max(1, money(quantity) || 1);
+    const unit = money(row.data.price);
+    const gst = money(row.data.gst_amount);
+    form.setValue("price", unit, { shouldValidate: true });
+    form.setValue("gst_amount", gst * qty, { shouldValidate: true });
+    form.setValue("amount", unit * qty, { shouldValidate: true });
+    if (money(quantity) < 1) form.setValue("quantity", qty, { shouldValidate: true });
+  }, [module.id, catalogs.data, product, quantity, form]);
+
+  function fieldVisible(f: FieldDef) {
+    if (!f.showWhen) return true;
+    return String(form.watch(f.showWhen.field) ?? "") === f.showWhen.equals;
+  }
+
+  function applyLookup(f: FieldDef, label: string) {
+    form.setValue(f.name, label, { shouldValidate: true });
+    if (!label || !f.fillFrom) return;
+    const rows = catalogs.data?.[f.lookupModule || ""] ?? [];
+    const key = lookupLabelOf(f);
+    const row = rows.find((r) => String(r.data[key] || "") === label);
+    if (!row) return;
+    for (const [dest, src] of Object.entries(f.fillFrom)) {
+      form.setValue(dest, row.data[src], { shouldValidate: true });
+    }
+  }
 
   return (
     <form
@@ -54,17 +105,32 @@ export function RecordForm({
         if (autoRemain) {
           v.remaining_amount = Math.max(0, money(v.total_amount) - money(v.advance_amount));
         }
+        for (const f of module.fields) {
+          if (f.showWhen && String(v[f.showWhen.field] ?? "") !== f.showWhen.equals) {
+            v[f.name] = f.kind === "number" ? 0 : f.kind === "checkbox" ? false : "";
+          }
+        }
         await onSubmit(v);
       })}
     >
       {module.fields.map((f) => {
+        if (!fieldVisible(f)) return null;
         const err = form.formState.errors[f.name]?.message as string | undefined;
         const derived = autoRemain && f.name === "remaining_amount";
+        const lookupRows = f.kind === "lookup" ? catalogs.data?.[f.lookupModule || ""] ?? [] : [];
+        const current = String(form.watch(f.name) || "");
+        const labels = lookupRows
+          .filter((r) => r.data.active !== false)
+          .map((r) => String(r.data[lookupLabelOf(f)] || "").trim())
+          .filter(Boolean);
+        const unique = [...new Set(labels)];
+        if (current && !unique.includes(current)) unique.unshift(current);
         return (
           <div key={f.name} className="grid gap-1">
             <Label htmlFor={f.name}>
               {f.label}
               {derived ? <span className="ml-1 text-paper/40">(auto)</span> : null}
+              {f.kind === "lookup" ? <span className="ml-1 text-paper/40">(select)</span> : null}
               {f.optional ? <span className="ml-1 text-paper/40">(optional)</span> : null}
             </Label>
             {f.kind === "textarea" ? (
@@ -72,10 +138,24 @@ export function RecordForm({
             ) : f.kind === "select" ? (
               <select
                 id={f.name}
-                className="h-11 w-full rounded-lg border border-line bg-ink/60 px-3 text-base sm:h-10 sm:text-sm"
+                className="h-11 w-full rounded-lg border border-gold/20 bg-ink/60 px-3 text-base transition focus:border-gold/70 sm:h-10 sm:text-sm"
                 {...form.register(f.name)}
               >
                 {f.options?.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            ) : f.kind === "lookup" ? (
+              <select
+                id={f.name}
+                className="h-11 w-full rounded-lg border border-gold/20 bg-ink/60 px-3 text-base transition focus:border-gold/70 sm:h-10 sm:text-sm"
+                value={current}
+                onChange={(e) => applyLookup(f, e.target.value)}
+              >
+                <option value="">{f.optional ? "None" : "Select product"}</option>
+                {unique.map((o) => (
                   <option key={o} value={o}>
                     {o}
                   </option>

@@ -28,6 +28,7 @@ export type SettingsRow = {
   address?: string;
   phone?: string;
   email?: string;
+  logo_url?: string;
 };
 
 export type RecordRow = {

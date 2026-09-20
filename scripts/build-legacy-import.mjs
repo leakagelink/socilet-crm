@@ -214,6 +214,7 @@ for (const r of j.spends || []) {
       {
         title: s(r.title),
         category: cat,
+        ad_for: s(r.ad_for) || s(r.ad_spend_for) || s(r.product_title),
         amount: n(r.amount),
         date: d(r.spend_date),
         payment_method: pay(r.payment_method),

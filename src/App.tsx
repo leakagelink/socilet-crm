@@ -2,8 +2,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { RequireAuth } from "@/components/RequireAuth";
 import { LoginPage, DeniedPage } from "@/pages/LoginPage";
-import { DashboardPage, BalanceTrackerPage, AnalyticsPage, AiAnalyzerPage } from "@/pages/SpecialPages";
+import { DashboardPage, AnalyticsPage, AiAnalyzerPage } from "@/pages/SpecialPages";
+import { BalanceTrackerPage } from "@/pages/BalanceTrackerPage";
+import { CosmofeedAnalyticsPage, CosmofeedComparePage, CosmofeedPage } from "@/pages/CosmofeedPages";
 import { EmailsPage } from "@/pages/EmailsPage";
+import { EmailSetupPage } from "@/pages/EmailSetupPage";
 import { AccountPage } from "@/pages/AccountPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { ModuleCrud } from "@/pages/ModuleCrud";
@@ -14,6 +17,8 @@ import { ClientsPage, ClientDetailPage } from "@/pages/ClientsPage";
 import { FollowUpsPage } from "@/pages/FollowUpsPage";
 import { GstPage } from "@/pages/GstPage";
 import { DocumentPrintPage, InvoicesPage, QuotationsPage } from "@/pages/DocumentsPages";
+import { InvoiceComposer, QuoteComposer } from "@/pages/DocumentComposer";
+import { PaymentMethodsPage } from "@/pages/PaymentMethodsPage";
 import { ServiceCredentialsPage } from "@/pages/ServiceCredentialsPage";
 
 function Crud({ id }: { id: string }) {
@@ -29,7 +34,7 @@ function LoginGate() {
   return <LoginPage />;
 }
 
-const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials"]);
+const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials", "cosmofeed", "payment_methods"]);
 
 export function App() {
   return (
@@ -44,13 +49,22 @@ export function App() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:id" element={<ClientDetailPage />} />
           <Route path="/quotations" element={<QuotationsPage />} />
+          <Route path="/quotations/new" element={<QuoteComposer />} />
+          <Route path="/quotations/:id/edit" element={<QuoteComposer />} />
           <Route path="/invoices" element={<InvoicesPage />} />
+          <Route path="/invoices/new" element={<InvoiceComposer />} />
+          <Route path="/invoices/:id/edit" element={<InvoiceComposer />} />
           <Route path="/print/:kind/:id" element={<DocumentPrintPage />} />
+          <Route path="/payment-methods" element={<PaymentMethodsPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/ai-analyzer" element={<AiAnalyzerPage />} />
           <Route path="/balance-tracker" element={<BalanceTrackerPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/cosmofeed" element={<CosmofeedPage />} />
+          <Route path="/cosmofeed-analytics" element={<CosmofeedAnalyticsPage />} />
+          <Route path="/cosmofeed-compare" element={<CosmofeedComparePage />} />
           <Route path="/emails" element={<EmailsPage />} />
+          <Route path="/email-setup" element={<EmailSetupPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/service-credentials" element={<ServiceCredentialsPage />} />
           {MODULES.filter((m) => !SPECIAL.has(m.id)).map((m) => (
