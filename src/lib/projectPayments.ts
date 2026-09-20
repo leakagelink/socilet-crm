@@ -7,6 +7,7 @@ export type ProjectPay = {
   amount: number;
   method: string;
   note: string;
+  invoice_id?: string;
 };
 
 export function money(v: unknown) {
@@ -31,6 +32,7 @@ function asPay(raw: unknown): ProjectPay | null {
     amount,
     method: String(o.method ?? o.payment_method ?? "").trim(),
     note: String(o.note ?? "").trim(),
+    invoice_id: String(o.invoice_id ?? "").trim() || undefined,
   };
 }
 
@@ -108,4 +110,49 @@ export function projectReceipts(row: RecordRow) {
 
 export function projectCashIn(row: RecordRow) {
   return projectReceipts(row).reduce((acc, p) => acc + money(p.amount), 0);
+}
+
+export function linkedInvoiceIds(projects: RecordRow[]) {
+  const ids = new Set<string>();
+  for (const r of projects) {
+    for (const p of parseProjectPayments(r.data)) {
+      if (p.invoice_id) ids.add(p.invoice_id);
+    }
+  }
+  return ids;
+}
+
+export function parseCollections(data: Record<string, unknown> | undefined): ProjectPay[] {
+  const raw = data?.collections;
+  if (Array.isArray(raw)) {
+    const listed = raw.map(asPay).filter((p): p is ProjectPay => Boolean(p));
+    if (listed.length) return listed.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  }
+  const last = money(data?.last_paid_amount);
+  const when = ymd(data?.last_paid_date);
+  if (last > 0 && when) {
+    return [{ id: "legacy-collection", date: when, amount: last, method: String(data?.payment_method ?? "").trim(), note: "Last paid" }];
+  }
+  return [];
+}
+
+export function applyCollections(data: Record<string, unknown>, pays: ProjectPay[]): Record<string, unknown> {
+  const cleaned = pays
+    .map(asPay)
+    .filter((p): p is ProjectPay => Boolean(p))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const last = cleaned[cleaned.length - 1];
+  return {
+    ...data,
+    collections: cleaned,
+    last_paid_date: last?.date || "",
+    last_paid_amount: last ? last.amount : 0,
+  };
+}
+
+export function collectionCash(row: RecordRow) {
+  const cols = parseCollections(row.data);
+  if (cols.length) return receivedFromPayments(cols);
+  if (row.data.active === false) return 0;
+  return money(row.data.amount);
 }

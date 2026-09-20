@@ -22,6 +22,7 @@ export type FollowItem = {
   detail: string;
   href: string;
   phone: string;
+  email: string;
   wa: string;
   tone: "due" | "overdue" | "info";
 };
@@ -37,10 +38,17 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
     listRecords("clients"),
   ]);
 
-  function phoneOf(row: RecordRow) {
+  function clientOf(row: RecordRow) {
     const id = str(row.data.client_id);
-    const client = clients.find((c) => c.id === id || str(c.data.name) === str(row.data.client));
+    return clients.find((c) => c.id === id || str(c.data.name) === str(row.data.client));
+  }
+  function phoneOf(row: RecordRow) {
+    const client = clientOf(row);
     return str(row.data.client_phone) || str(row.data.phone) || str(client?.data.phone);
+  }
+  function emailOf(row: RecordRow) {
+    const client = clientOf(row);
+    return str(row.data.client_email) || str(row.data.email) || str(client?.data.email);
   }
 
   const items: FollowItem[] = [];
@@ -59,6 +67,7 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
       detail: `${str(row.data.client)} · remaining ₹${Math.round(remain)}`,
       href: "/projects",
       phone,
+      email: emailOf(row),
       wa: waLink(phone, text),
       tone: "overdue",
     });
@@ -79,6 +88,7 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
       detail: `${str(row.data.client)} · ${due || "no due date"}`,
       href: "/invoices",
       phone,
+      email: emailOf(row),
       wa: waLink(phone, text),
       tone: overdue ? "overdue" : "due",
     });
@@ -95,6 +105,7 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
       detail: `${status || "open"} · ${due}`,
       href: "/tasks",
       phone: "",
+      email: "",
       wa: "",
       tone: due < today ? "overdue" : "due",
     });
@@ -113,6 +124,7 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
       detail: `${str(row.data.client)} · ${due}`,
       href: "/reminders",
       phone,
+      email: emailOf(row),
       wa: waLink(phone, `Follow-up: ${title}`),
       tone: due < today ? "overdue" : "due",
     });
@@ -131,6 +143,7 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
       detail: `${str(row.data.client)} · ${next}`,
       href: "/recurring-earnings",
       phone,
+      email: emailOf(row),
       wa: waLink(phone, `Namaste, ${name} billing is due (${next}).`),
       tone: next < today ? "overdue" : "due",
     });

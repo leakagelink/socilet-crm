@@ -1,6 +1,6 @@
 import { db, cloudLive, listRecords, type RecordRow, type SettingsRow } from "@/lib/db";
 import { apiJson } from "@/lib/apiBase";
-import { projectCashIn, projectReceipts } from "@/lib/projectPayments";
+import { collectionCash, linkedInvoiceIds, parseCollections, projectCashIn, projectReceipts } from "@/lib/projectPayments";
 
 export type MonthBucket = {
   month: string;
@@ -24,6 +24,7 @@ export type FinanceSnapshot = {
   investments: number;
   polledAt: string;
   monthlyRecurring: number;
+  recurringReceived: number;
   totalRevenue: number;
   projectsTotal: number;
   pending: number;
@@ -131,12 +132,13 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
     listRecords("projects"),
     listRecords("balance_tracker"),
   ]);
-  const paidInvoices = invoices.filter((r) => String(r.data.status).toLowerCase() === "paid");
+  const paidInvoices = invoices.filter((r) => String(r.data.status).toLowerCase() === "paid" && !linkedInvoiceIds(projects).has(r.id));
   const paidAddons = addons.filter((r) => String(r.data.status).toLowerCase() === "paid");
   const activeRecurring = recurring.filter((r) => r.data.active !== false);
   const otherIncome = sumReceived(other);
   const cosmofeed = sumAmount(cosmofeedRows);
   const monthlyRecurring = sumAmount(activeRecurring);
+  const recurringReceived = recurring.reduce((acc, r) => acc + collectionCash(r), 0);
   const digitalSales = digital.reduce((acc, r) => acc + (num(r.data.resell_price) || num(r.data.amount)), 0);
   const digitalProfit = digital.reduce((acc, r) => {
     const profit = num(r.data.profit);
@@ -153,7 +155,7 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
   const paidAddonSum = sumAmount(paidAddons);
   const adjustmentSum = sumAmount(adjustments);
   const totalIncome =
-    otherIncome + cosmofeed + monthlyRecurring + sumAmount(paidInvoices) + digitalSales + paidAddonSum + projectReceived + adjustmentSum;
+    otherIncome + cosmofeed + recurringReceived + sumAmount(paidInvoices) + digitalSales + paidAddonSum + projectReceived + adjustmentSum;
   const totalSpends = sumAmount(spends);
   const available = base + totalIncome - totalSpends;
   /** Cash already in: other + digital + cosmofeed + project receipts (incl. completed) */
@@ -169,7 +171,14 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
   for (const r of digital) bump(monthKey(r.data.sale_date || r.data.date || r.created_at), "digital", num(r.data.resell_price) || num(r.data.amount));
   for (const r of other) bump(monthKey(r.data.date || r.created_at), "other", receivedOf(r));
   for (const r of cosmofeedRows) bump(monthKey(r.data.date || r.created_at), "cosmofeed", num(r.data.amount));
-  for (const r of activeRecurring) bump(monthKey(r.data.start_date || r.data.date || r.created_at), "recurring", num(r.data.amount));
+  for (const r of recurring) {
+    const cols = parseCollections(r.data);
+    if (cols.length) {
+      for (const c of cols) bump(monthKey(c.date), "recurring", c.amount);
+    } else if (r.data.active !== false) {
+      bump(monthKey(r.data.start_date || r.data.date || r.created_at), "recurring", num(r.data.amount));
+    }
+  }
   for (const r of projects) {
     for (const p of projectReceipts(r)) bump(monthKey(p.date || r.data.start_date || r.created_at), "projects", p.amount);
   }
@@ -181,7 +190,7 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
     .sort((a, b) => a.month.localeCompare(b.month))
     .map((m) => ({
       ...m,
-      revenue: m.digital + m.other + m.cosmofeed + m.projects + m.addons + m.invoices,
+      revenue: m.digital + m.other + m.cosmofeed + m.projects + m.addons + m.invoices + m.recurring,
     }));
 
   return {
@@ -192,6 +201,7 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
     investments: investments.reduce((acc, r) => acc + num(r.data.current_value ?? r.data.amount), 0),
     polledAt: new Date().toISOString(),
     monthlyRecurring,
+    recurringReceived,
     totalRevenue,
     projectsTotal,
     pending,

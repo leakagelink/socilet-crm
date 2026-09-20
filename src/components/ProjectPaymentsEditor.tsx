@@ -12,7 +12,7 @@ function today() {
 }
 
 export function emptyPay(method = "", amount = 0): ProjectPay {
-  return { id: uid(), date: today(), amount, method, note: "" };
+  return { id: uid(), date: today(), amount, method, note: "", invoice_id: "" };
 }
 
 export function ProjectPaymentsEditor({
@@ -21,12 +21,16 @@ export function ProjectPaymentsEditor({
   method,
   pays,
   onChange,
+  invoices = [],
+  openEnded = false,
 }: {
   client: string;
   total: number;
   method: string;
   pays: ProjectPay[];
   onChange: (next: ProjectPay[]) => void;
+  invoices?: { id: string; label: string }[];
+  openEnded?: boolean;
 }) {
   const received = money(applyProjectPayments({ total_amount: total }, pays).advance_amount);
   const remaining = Math.max(0, money(total) - received);
@@ -39,15 +43,21 @@ export function ProjectPaymentsEditor({
   return (
     <div className="grid gap-2 rounded-xl border border-gold/25 bg-gold/5 p-3">
       <div>
-        <Label>Payments from {who}</Label>
+        <Label>{openEnded ? `Collections from ${who}` : `Payments from ${who}`}</Label>
         <p className="mt-0.5 text-xs text-paper/50">
-          Zero advance theek hai. Beech ki partial aur project date ke baad ki full payment — date ke sath yahin add karo.
+          {openEnded
+            ? "Har month jab retainer aaye, date + amount yahan likho. Available balance inhi collections se update hota hai."
+            : "Zero advance theek hai. Beech ki partial aur project date ke baad ki full payment — date ke sath yahin add karo."}
         </p>
       </div>
-      <div className="flex flex-wrap gap-2 text-[11px]">
-        <span className="rounded-full border border-gold/25 bg-panel px-2 py-0.5">Received {inr(received)}</span>
-        <span className="rounded-full border border-gold/25 bg-panel px-2 py-0.5">Remaining {inr(remaining)}</span>
-      </div>
+      {!openEnded ? (
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          <span className="rounded-full border border-gold/25 bg-panel px-2 py-0.5">Received {inr(received)}</span>
+          <span className="rounded-full border border-gold/25 bg-panel px-2 py-0.5">Remaining {inr(remaining)}</span>
+        </div>
+      ) : (
+        <div className="text-[11px] text-paper/60">Collected {inr(received)}</div>
+      )}
       {pays.length ? (
         <div className="grid gap-2">
           {pays.map((p, i) => (
@@ -90,6 +100,23 @@ export function ProjectPaymentsEditor({
                   onChange={(e) => patch(p.id, { note: e.target.value })}
                 />
               </div>
+              {invoices.length ? (
+                <div className="grid gap-1 sm:col-span-4">
+                  <span className="text-[10px] uppercase tracking-wide text-paper/40">Linked invoice (avoid double count)</span>
+                  <select
+                    className="h-11 w-full rounded-xl border border-gold/20 bg-ink/70 px-3 text-base sm:h-10 sm:text-sm"
+                    value={p.invoice_id || ""}
+                    onChange={(e) => patch(p.id, { invoice_id: e.target.value })}
+                  >
+                    <option value="">Not an invoice — count as project cash only</option>
+                    {invoices.map((inv) => (
+                      <option key={inv.id} value={inv.id}>
+                        {inv.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -101,7 +128,7 @@ export function ProjectPaymentsEditor({
           <Plus className="h-3.5 w-3.5" />
           Add payment
         </Button>
-        {remaining > 0 ? (
+        {remaining > 0 && !openEnded ? (
           <Button
             type="button"
             variant="outline"
@@ -141,6 +168,7 @@ export function ProjectPaymentTrail({
             {who ? ` · ${who}` : ""}
             {p.method ? ` · ${p.method}` : ""}
             {p.note ? ` · ${p.note}` : ""}
+            {p.invoice_id ? " · invoice-linked" : ""}
           </span>
           <span className="shrink-0 font-medium text-mint">{inr(p.amount)}</span>
         </li>

@@ -93,8 +93,8 @@ export function DashboardPage() {
           <HeroTile
             icon={Repeat}
             label="Monthly recurring"
-            hint="Active subscriptions"
-            value={d.monthlyRecurring}
+            hint="Collections received (plan in mix)"
+            value={d.recurringReceived}
             className="bg-gradient-to-br from-teal-500/90 to-cyan-600/70"
           />
           <HeroTile
@@ -157,7 +157,7 @@ export function DashboardPage() {
                 { label: "Other income", value: d.otherIncome, color: "#fb923c" },
                 { label: "Cosmofeed", value: d.cosmofeed, color: "#38bdf8" },
                 { label: "Projects", value: d.projectsTotal - d.pending, color: "#34d399" },
-                { label: "Recurring", value: d.monthlyRecurring, color: "#2dd4bf" },
+                { label: "Recurring", value: d.recurringReceived, color: "#2dd4bf" },
               ]}
             />
           ) : null}
@@ -181,7 +181,9 @@ export function DashboardPage() {
           <h2 className="mb-3 font-display text-lg">Recent motion</h2>
           <div className="grid min-w-0 gap-2">
             {(activity.data ?? []).length === 0 ? (
-              <p className="text-sm text-paper/45">No rows yet — add a project, invoice, or spend and it shows here.</p>
+              <p className="text-sm text-paper/45">
+                No rows yet — <Link to="/activity" className="text-gold">activity log</Link> fills as staff save records.
+              </p>
             ) : (
               (activity.data ?? []).map((row) => {
                 const title = MODULES.find((m) => m.id === row.module)?.title ?? row.module;

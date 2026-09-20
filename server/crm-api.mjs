@@ -1,4 +1,4 @@
-import { randomUUID, createCipheriv, randomBytes, scryptSync } from "node:crypto";
+import { randomUUID, createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { json } from "./http-util.mjs";
 import { corsAndOptions, escapeHtml, guardOrigin, readJson } from "./security.mjs";
 import { requireApiUser } from "./auth-api.mjs";
@@ -87,6 +87,19 @@ export async function runDailyBackup(env = process.env) {
     }
   }
   return { ok: true, day };
+}
+
+function decryptBackupPayload(input, env) {
+  const iv = Buffer.from(String(input.iv || ""), "base64");
+  const tag = Buffer.from(String(input.tag || ""), "base64");
+  const data = Buffer.from(String(input.data || ""), "base64");
+  if (!iv.length || !tag.length || !data.length) throw new Error("Encrypted backup needs iv, tag, and data");
+  const decipher = createDecipheriv("aes-256-gcm", backupKey(env), iv);
+  decipher.setAuthTag(tag);
+  const plain = Buffer.concat([decipher.update(data), decipher.final()]);
+  const parsed = JSON.parse(plain.toString("utf8"));
+  if (!parsed || typeof parsed !== "object") throw new Error("Backup payload invalid");
+  return parsed;
 }
 
 function docHtml(row, firm) {
@@ -322,6 +335,54 @@ export async function handleCrmRequest(req, res, env = process.env) {
       const state = loadState();
       const records = credsLocked(req) ? hideCreds(state.records) : state.records;
       json(res, 200, { records, settings: state.settings, savedAt: state.savedAt });
+      return true;
+    }
+    if (req.method === "POST" && path === "/api/crm/backup/restore") {
+      if (user.role !== "admin") {
+        json(res, 403, { error: "Admin only" });
+        return true;
+      }
+      const input = await readJson(req, res);
+      if (!input) return true;
+      let payload = input;
+      if (input.iv && input.tag && input.data) {
+        try {
+          payload = decryptBackupPayload(input, env);
+        } catch (err) {
+          json(res, 400, { error: err instanceof Error ? err.message : "Could not decrypt backup" });
+          return true;
+        }
+      }
+      const incoming = Array.isArray(payload.records) ? payload.records : [];
+      if (!incoming.length) {
+        json(res, 400, { error: "Backup has no records" });
+        return true;
+      }
+      const state = loadState();
+      const byId = new Map(state.records.map((r) => [r.id, r]));
+      const locked = credsLocked(req);
+      for (const row of incoming) {
+        if (!row?.id || !row.module) continue;
+        if (locked && row.module === "service_credentials") continue;
+        byId.set(row.id, row);
+      }
+      state.records = [...byId.values()];
+      if (payload.settings?.finance && typeof payload.settings.finance.base_balance === "number") {
+        state.settings.finance = {
+          id: "finance",
+          base_balance: Number(payload.settings.finance.base_balance),
+          updated_at: payload.settings.finance.updated_at || new Date().toISOString(),
+        };
+      }
+      if (payload.settings?.firm && typeof payload.settings.firm === "object") {
+        state.settings.firm = { ...emptyFirm(), ...payload.settings.firm };
+      }
+      saveState(state);
+      json(res, 200, {
+        data: locked ? hideCreds(state.records) : state.records,
+        settings: state.settings,
+        restored: incoming.length,
+      });
       return true;
     }
 

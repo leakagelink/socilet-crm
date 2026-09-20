@@ -1,5 +1,5 @@
 import { listRecords } from "@/lib/db";
-import { projectReceipts } from "@/lib/projectPayments";
+import { linkedInvoiceIds, projectReceipts } from "@/lib/projectPayments";
 
 function num(v: unknown) {
   const n = typeof v === "number" ? v : Number(v);
@@ -55,8 +55,10 @@ export async function loadGstReport(): Promise<GstMonth[]> {
     return row;
   };
 
+  const skipInvoices = linkedInvoiceIds(projects);
   for (const r of invoices) {
     if (String(r.data.status).toLowerCase() !== "paid") continue;
+    if (skipInvoices.has(r.id)) continue;
     const b = bucket(monthOf(r.data.paid_at || r.data.due_date || r.updated_at));
     if (!b) continue;
     b.invoices += num(r.data.amount);

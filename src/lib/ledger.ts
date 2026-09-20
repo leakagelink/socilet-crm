@@ -1,6 +1,6 @@
 import type { RecordRow } from "@/lib/db";
 import { dayOf, inDayRange, ymd } from "@/lib/dateRange";
-import { projectReceipts } from "@/lib/projectPayments";
+import { parseCollections, projectReceipts } from "@/lib/projectPayments";
 
 export type LedgerKind = "projects" | "recurring" | "digital" | "other" | "cosmofeed" | "spends" | "adjustment";
 
@@ -146,8 +146,15 @@ export function buildLedger(input: {
     );
   }
   for (const r of input.recurring) {
-    const amt = money(r.data.amount);
     const name = String(r.data.name || "Recurring");
+    const cols = parseCollections(r.data);
+    if (cols.length) {
+      for (const c of cols) {
+        push(out, r, "recurring", name, c.amount, c.date, "/recurring-earnings", c.id, c.method);
+      }
+      continue;
+    }
+    const amt = money(r.data.amount);
     for (const d of recurringDates(r, from, to)) {
       push(out, r, "recurring", name, amt, d, "/recurring-earnings", d);
     }

@@ -34,7 +34,7 @@ export function rowTitle(row: RecordRow, module: ModuleDef) {
 }
 
 export function rowSubtitle(row: RecordRow) {
-  const bits = [row.data.client, row.data.company, row.data.category, row.data.platform, row.data.type, row.data.assignee]
+  const bits = [row.data.client, row.data.company, row.data.category, row.data.project_name, row.data.platform, row.data.type, row.data.assignee]
     .map((v) => String(v ?? "").trim())
     .filter(Boolean);
   return [...new Set(bits)].slice(0, 2).join(" · ");
@@ -56,11 +56,11 @@ export function rowMoney(row: RecordRow, moduleId: string) {
 }
 
 export function chipFields(module: ModuleDef) {
-  const skip = new Set(["name", "title", "notes", "message", "description", "file_url", "client_id"]);
+  const skip = new Set(["name", "title", "notes", "message", "description", "file_url", "client_id", "project_id"]);
   return module.fields.filter((f) => {
     if (skip.has(f.name)) return false;
     if (f.name === "status") return false;
-    return f.kind === "date" || DATE_FIELDS.has(f.name) || ["client", "category", "payment_method", "priority", "type", "platform"].includes(f.name);
+    return f.kind === "date" || DATE_FIELDS.has(f.name) || ["client", "category", "payment_method", "priority", "type", "platform", "project_name"].includes(f.name);
   }).slice(0, 5);
 }
 

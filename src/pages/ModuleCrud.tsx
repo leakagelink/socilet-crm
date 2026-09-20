@@ -43,6 +43,11 @@ export function ModuleCrud({
     queryKey: ["module", module.id],
     queryFn: () => listRecords(module.id),
   });
+  const spendsQ = useQuery({
+    queryKey: ["module", "spends"],
+    queryFn: () => listRecords("spends"),
+    enabled: module.id === "projects",
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RecordRow | null>(null);
   const [search, setSearch] = useState("");
@@ -309,6 +314,23 @@ export function ModuleCrud({
                   <div className="mt-3 rounded-xl border border-gold/15 bg-gold/5 px-3 py-2">
                     <div className="mb-1 text-[10px] uppercase tracking-wide text-paper/40">Payments</div>
                     <ProjectPaymentTrail client={String(row.data.client || "")} pays={parseProjectPayments(row.data)} />
+                    {(() => {
+                      const linked = (spendsQ.data ?? []).filter(
+                        (s) =>
+                          String(s.data.project_id || "") === row.id ||
+                          String(s.data.project_name || "").toLowerCase() === String(row.data.name || "").toLowerCase(),
+                      );
+                      if (!linked.length) return null;
+                      const total = linked.reduce((a, s) => a + viewMoney(s.data.amount), 0);
+                      return (
+                        <div className="mt-2 text-xs text-paper/55">
+                          Spends {linked.length} · {inr(total)}
+                          <div className="mt-1 truncate text-[11px] text-paper/40">
+                            {linked.map((s) => String(s.data.title || "Spend")).join(", ")}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : null}
                 <div className="mt-auto flex flex-wrap gap-2 pt-4">

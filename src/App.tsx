@@ -14,6 +14,7 @@ import { MODULES } from "@/lib/modules";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_HOME, isStaffRole } from "@/lib/roles";
 import { ClientsPage, ClientDetailPage } from "@/pages/ClientsPage";
+import { ActivityPage } from "@/pages/ActivityPage";
 import { FollowUpsPage } from "@/pages/FollowUpsPage";
 import { GstPage } from "@/pages/GstPage";
 import { DocumentPrintPage, InvoicesPage, QuotationsPage } from "@/pages/DocumentsPages";
@@ -34,7 +35,7 @@ function LoginGate() {
   return <LoginPage />;
 }
 
-const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials", "cosmofeed", "payment_methods"]);
+const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials", "cosmofeed", "payment_methods", "activity"]);
 
 export function App() {
   return (
@@ -45,6 +46,7 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/follow-ups" element={<FollowUpsPage />} />
+          <Route path="/activity" element={<ActivityPage />} />
           <Route path="/gst" element={<GstPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:id" element={<ClientDetailPage />} />
