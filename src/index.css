@@ -3,13 +3,13 @@
 @theme {
   --font-sans: "Outfit", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, serif;
-  --color-ink: #0b1624;
-  --color-panel: #122033;
-  --color-line: #3a4d68;
-  --color-gold: #e8c36a;
-  --color-gold-deep: #c9a24a;
-  --color-mint: #e8c36a;
-  --color-paper: #f3eee4;
+  --color-ink: #fffaf1;
+  --color-panel: #ffffff;
+  --color-line: #ead7a8;
+  --color-gold: #d4a017;
+  --color-gold-deep: #b8860b;
+  --color-mint: #128a76;
+  --color-paper: #0b1624;
 }
 
 * { box-sizing: border-box; }
@@ -42,7 +42,7 @@ body {
 body {
   font-family: var(--font-sans);
   color: var(--color-paper);
-  background: #0b1624;
+  background: #fff6e8;
 }
 
 html,
@@ -75,10 +75,10 @@ html body[data-scroll-locked] {
   inset: -12%;
   z-index: 0;
   background:
-    radial-gradient(900px 480px at 8% -8%, rgba(232, 195, 106, 0.28), transparent 58%),
-    radial-gradient(720px 420px at 108% 12%, rgba(232, 195, 106, 0.12), transparent 52%),
-    radial-gradient(640px 360px at 50% 118%, rgba(11, 22, 36, 0.9), transparent 55%),
-    linear-gradient(180deg, #152338 0%, #0b1624 46%);
+    radial-gradient(900px 480px at 8% -8%, rgba(232, 195, 106, 0.55), transparent 58%),
+    radial-gradient(720px 420px at 108% 12%, rgba(18, 138, 118, 0.18), transparent 52%),
+    radial-gradient(640px 360px at 50% 118%, rgba(255, 250, 241, 0.9), transparent 55%),
+    linear-gradient(180deg, #fff4d6 0%, #fffaf1 42%, #f3eee4 100%);
   animation: gold-breathe 16s ease-in-out infinite;
 }
 
@@ -98,7 +98,7 @@ input, textarea, select, button { font: inherit; }
 
 @keyframes count-glow {
   from { text-shadow: 0 0 0 transparent; }
-  to { text-shadow: 0 0 22px rgba(232, 195, 106, 0.45); }
+  to { text-shadow: 0 0 18px rgba(212, 160, 23, 0.35); }
 }
 
 @keyframes rise {
@@ -122,8 +122,8 @@ input, textarea, select, button { font: inherit; }
 }
 
 @keyframes mark-glow {
-  0%, 100% { box-shadow: 0 8px 24px rgba(232, 195, 106, 0.28); }
-  50% { box-shadow: 0 10px 32px rgba(232, 195, 106, 0.5); }
+  0%, 100% { box-shadow: 0 8px 24px rgba(212, 160, 23, 0.28); }
+  50% { box-shadow: 0 10px 32px rgba(212, 160, 23, 0.5); }
 }
 
 @keyframes underline-draw {
@@ -153,12 +153,12 @@ input, textarea, select, button { font: inherit; }
 .stagger > *:nth-child(6) { animation-delay: 0.32s; }
 
 .glass {
-  background: color-mix(in srgb, var(--color-panel) 88%, #0b1624);
+  background: color-mix(in srgb, var(--color-panel) 86%, #fff6e8);
 }
 
 @media (min-width: 1024px) {
   .glass {
-    background: color-mix(in srgb, var(--color-panel) 74%, transparent);
+    background: color-mix(in srgb, var(--color-panel) 78%, transparent);
     backdrop-filter: blur(22px) saturate(150%);
   }
 }
@@ -172,7 +172,7 @@ input, textarea, select, button { font: inherit; }
   position: absolute;
   inset: -40% auto -40% -40%;
   width: 40%;
-  background: linear-gradient(90deg, transparent, rgba(232, 195, 106, 0.18), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
   transform: skewX(-18deg);
   animation: none;
 }
@@ -203,7 +203,7 @@ input, textarea, select, button { font: inherit; }
   height: 2px;
   margin-top: 0.55rem;
   border-radius: 99px;
-  background: linear-gradient(90deg, #e8c36a, transparent);
+  background: linear-gradient(90deg, #d4a017, transparent);
   transform-origin: left;
   animation: underline-draw 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -213,14 +213,14 @@ input, textarea, select, button { font: inherit; }
 }
 .lift:hover {
   transform: translateY(-3px);
-  border-color: rgba(232, 195, 106, 0.35);
-  box-shadow: 0 18px 40px -24px rgba(232, 195, 106, 0.45), 0 24px 50px -28px rgba(0, 0, 0, 0.7);
+  border-color: rgba(212, 160, 23, 0.55);
+  box-shadow: 0 18px 40px -20px rgba(212, 160, 23, 0.45), 0 16px 32px -24px rgba(11, 22, 36, 0.2);
 }
 
 .grid-fade {
   background-image:
-    linear-gradient(rgba(232, 195, 106, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232, 195, 106, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(212, 160, 23, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(212, 160, 23, 0.12) 1px, transparent 1px);
   background-size: 28px 28px;
   mask-image: radial-gradient(ellipse at center, black 35%, transparent 75%);
 }

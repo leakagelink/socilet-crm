@@ -270,7 +270,7 @@ export function DocumentComposer({ kind }: { kind: Kind }) {
                   <button
                     key={c.id}
                     type="button"
-                    className="block w-full border-b border-white/5 px-3 py-2 text-left text-sm hover:bg-white/5"
+                    className="block w-full border-b border-gold/15 px-3 py-2 text-left text-sm hover:bg-gold/8"
                     onClick={() => pickClient(c)}
                   >
                     <div className="font-medium">{str(c.data.name)}</div>

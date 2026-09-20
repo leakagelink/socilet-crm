@@ -73,7 +73,7 @@ export function BarChart({
       {items.map((i) => (
         <div key={i.label} className="grid min-w-0 justify-items-center gap-1 sm:gap-2">
           <div className="w-full break-all text-center text-[10px] leading-tight text-paper/55 sm:text-[11px]">{inr(i.value)}</div>
-          <div className="flex h-28 w-full max-w-[4.5rem] items-end rounded-2xl bg-white/5 p-1 sm:h-36">
+          <div className="flex h-28 w-full max-w-[4.5rem] items-end rounded-2xl bg-gold/10 p-1 sm:h-36">
             <div
               className="bar-grow w-full rounded-xl"
               style={{
@@ -112,7 +112,7 @@ export function MonthlyBarChart({
       >
         {months.map((m) => (
           <div key={m.label} className="grid min-w-0 justify-items-center gap-1 sm:gap-2">
-            <div className="flex h-40 w-full max-w-[3.4rem] flex-col-reverse overflow-hidden rounded-xl bg-white/5 sm:h-48">
+            <div className="flex h-40 w-full max-w-[3.4rem] flex-col-reverse overflow-hidden rounded-xl bg-gold/10 sm:h-48">
               {SERIES.map((s) => {
                 const v = m[s.key];
                 if (v <= 0) return null;

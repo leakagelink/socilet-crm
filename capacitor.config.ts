@@ -9,11 +9,11 @@ const config: CapacitorConfig = {
   },
   plugins: {
     StatusBar: {
-      style: "DARK",
+      style: "LIGHT",
     },
     SystemBars: {
       insetsHandling: "css",
-      style: "DARK",
+      style: "LIGHT",
     },
   },
 };

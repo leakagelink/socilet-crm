@@ -581,7 +581,7 @@ function StaffCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: st
         {users
           .filter((u) => u.role !== "admin")
           .map((u) => (
-            <div key={u.userId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 px-3 py-2 text-sm">
+            <div key={u.userId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gold/20 px-3 py-2 text-sm">
               <span>
                 {u.fullName} · {u.email} · {u.role}
               </span>

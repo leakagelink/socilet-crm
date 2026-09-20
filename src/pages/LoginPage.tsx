@@ -86,18 +86,18 @@ export function LoginPage() {
 
   return (
     <div className="relative grid min-h-full lg:grid-cols-2">
-      <div className="relative hidden items-end p-10 lg:flex">
-        <div className="orb pointer-events-none absolute -left-16 top-10 h-72 w-72 rounded-full bg-gold/20 blur-3xl" />
-        <div className="orb pointer-events-none absolute bottom-10 right-10 h-80 w-80 rounded-full bg-gold/15 blur-3xl" />
+      <div className="relative hidden overflow-hidden items-end p-10 lg:flex">
+        <div className="orb pointer-events-none absolute -left-16 top-10 h-72 w-72 rounded-full bg-gold/35 blur-3xl" />
+        <div className="orb pointer-events-none absolute bottom-10 right-10 h-80 w-80 rounded-full bg-mint/20 blur-3xl" />
         <div className="grid-fade pointer-events-none absolute inset-0" />
         <div className="relative max-w-md">
           <img src="/socilet-logo.svg" alt="Socilet" className="brand-mark mb-6 h-16 w-16 rounded-2xl ring-1 ring-gold/40" />
           <div className="text-[11px] uppercase tracking-[0.32em] text-gold">Socilet</div>
-          <h1 className="font-display mt-3 text-5xl leading-tight">The ledger, dressed for night work.</h1>
+          <h1 className="font-display mt-3 text-5xl leading-tight text-paper">The ledger, dressed for daylight.</h1>
           <p className="mt-4 text-sm text-paper/55">INR command deck for projects, mail, and cash. Admin, designer, and accountant logins.</p>
         </div>
       </div>
-      <div className="relative flex items-center justify-center p-4 pt-[calc(var(--sat)+1rem)] pb-[calc(var(--sab)+1rem)]">
+      <div className="relative flex min-h-full items-center justify-center p-4 pt-[calc(var(--sat)+1rem)] pb-[calc(var(--sab)+1rem)]">
         <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-gold/15 blur-3xl lg:hidden" />
         <Card className="page-enter shine relative w-full max-w-md border-gold/35">
           <img src="/socilet-logo.svg" alt="" className="brand-mark mb-4 h-12 w-12 rounded-2xl ring-1 ring-gold/40 lg:hidden" />
@@ -140,7 +140,7 @@ export function LoginPage() {
                   onChange={(ev) => setCode(ev.target.value.replace(/\D/g, "").slice(0, 6))}
                 />
               </div>
-              {err ? <p className="text-sm text-red-400">{err}</p> : null}
+              {err ? <p className="text-sm text-red-600">{err}</p> : null}
               <Button type="submit" disabled={locked}>Verify</Button>
               <Button
                 type="button"
@@ -176,17 +176,17 @@ export function LoginPage() {
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" autoComplete="username" disabled={locked} {...form.register("email")} />
                 {form.formState.errors.email ? (
-                  <p className="text-xs text-red-400">{form.formState.errors.email.message}</p>
+                  <p className="text-xs text-red-600">{form.formState.errors.email.message}</p>
                 ) : null}
               </div>
               <div className="grid gap-1">
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" type="password" autoComplete="current-password" disabled={locked} {...form.register("password")} />
                 {form.formState.errors.password ? (
-                  <p className="text-xs text-red-400">{form.formState.errors.password.message}</p>
+                  <p className="text-xs text-red-600">{form.formState.errors.password.message}</p>
                 ) : null}
               </div>
-              {err ? <p className="text-sm text-red-400">{err}</p> : null}
+              {err ? <p className="text-sm text-red-600">{err}</p> : null}
               <Button type="submit" disabled={locked || form.formState.isSubmitting}>
                 Sign in
               </Button>

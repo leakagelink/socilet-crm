@@ -29,7 +29,7 @@ export function DateRangeBar({
               "rounded-full border px-3 py-1.5 text-xs font-medium transition",
               preset === p.id
                 ? "border-gold/40 bg-gold/15 text-gold"
-                : "border-white/10 bg-white/4 text-paper/60 hover:text-paper",
+                : "border-gold/25 bg-gold/5 text-paper/60 hover:text-paper",
             )}
           >
             {p.label}

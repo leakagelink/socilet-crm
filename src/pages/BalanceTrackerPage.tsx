@@ -137,7 +137,7 @@ export function BalanceTrackerPage() {
               onClick={() => setKind(k.id)}
               className={cn(
                 "rounded-full border px-3 py-1.5 text-xs font-medium",
-                kind === k.id ? "border-gold/40 bg-gold/15 text-gold" : "border-white/10 bg-white/4 text-paper/60",
+                kind === k.id ? "border-gold/40 bg-gold/15 text-gold" : "border-gold/20 bg-gold/5 text-paper/60",
               )}
             >
               {k.label}
@@ -170,7 +170,7 @@ export function BalanceTrackerPage() {
                 </tr>
               ) : (
                 shown.map((t) => (
-                  <tr key={t.id} className="border-t border-white/5">
+                  <tr key={t.id} className="border-t border-gold/15">
                     <td className="whitespace-nowrap px-2 py-2">{t.date || "—"}</td>
                     <td className={cn("px-2 py-2 capitalize", KIND_TONE[t.kind])}>{t.kind}</td>
                     <td className="px-2 py-2">

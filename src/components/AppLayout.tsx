@@ -34,6 +34,8 @@ import {
   Users,
   Landmark,
   PhoneCall,
+  ChevronLeft,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -264,6 +266,27 @@ function useUnseenMail() {
   });
 }
 
+const QUICK_DOCK_KEY = "socilet.quickDock";
+
+function useQuickDockOpen() {
+  const [open, setOpenState] = useState(() => {
+    try {
+      return localStorage.getItem(QUICK_DOCK_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  function setOpen(next: boolean) {
+    setOpenState(next);
+    try {
+      localStorage.setItem(QUICK_DOCK_KEY, next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+  return [open, setOpen] as const;
+}
+
 function QuickDock({ compact = false, onGo }: { compact?: boolean; onGo?: () => void }) {
   const { session } = useAuth();
   const loc = useLocation();
@@ -276,7 +299,6 @@ function QuickDock({ compact = false, onGo }: { compact?: boolean; onGo?: () => 
   if (!items.length) return null;
   return (
     <div className={cn("grid gap-1", compact ? "" : "px-0")}>
-      {!compact ? <div className="mb-1 px-3 text-[10px] uppercase tracking-[0.2em] text-paper/30">Quick</div> : null}
       {items.map((item) => {
         const Icon = ICONS[item.path] ?? LayoutDashboard;
         const on = tabActive(item.path, loc.pathname);
@@ -323,6 +345,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const loc = useLocation();
   const [open, setOpen] = useState(false);
+  const [dockOpen, setDockOpen] = useQuickDockOpen();
   useEffect(() => {
     void restoreMailboxesToServer();
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
@@ -339,9 +362,31 @@ export function AppLayout() {
             <div className="font-display text-xl leading-none">CRM</div>
           </div>
         </div>
-        <div className="my-auto py-3">
-          <QuickDock />
-        </div>
+        {dockOpen ? (
+          <div className="mb-4 rounded-2xl border border-gold/20 bg-gold/5 p-2">
+            <div className="mb-1 flex items-center justify-between px-1">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-paper/30">Quick</div>
+              <button
+                type="button"
+                onClick={() => setDockOpen(false)}
+                className="rounded-lg p-1 text-paper/45 hover:bg-gold/15 hover:text-gold"
+                aria-label="Hide Spends and Emails"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
+            <QuickDock />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDockOpen(true)}
+            className="mb-4 flex items-center justify-between rounded-xl border border-gold/20 bg-gold/5 px-3 py-2 text-[12px] text-paper/70 hover:border-gold/40 hover:text-gold"
+          >
+            Show Spends & Emails
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto">
           <NavList />
         </div>
@@ -366,7 +411,7 @@ export function AppLayout() {
           </div>
           <div className="flex shrink-0 items-center gap-2 text-sm sm:gap-3">
             <NotificationBell />
-            <div className="hidden h-9 items-center rounded-full border border-white/10 bg-white/5 px-3 sm:flex">
+            <div className="hidden h-9 items-center rounded-full border border-gold/25 bg-gold/10 px-3 sm:flex">
               <span className="max-w-40 truncate text-paper/70">{session?.email}</span>
             </div>
             <Button
@@ -383,10 +428,40 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        <nav className="fixed left-[max(0.5rem,var(--sal))] top-1/2 z-30 -translate-y-1/2 print:hidden lg:hidden" aria-label="Spends and email">
-          <QuickDock compact />
-        </nav>
-        <main key={loc.pathname} className="page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[calc(4.5rem+var(--sab))] pl-[max(4rem,calc(3.5rem+var(--sal)))] sm:p-4 sm:pl-16 md:p-8 md:pl-16 lg:pb-[max(1.25rem,var(--sab))] lg:pl-8">
+        {dockOpen ? (
+          <nav
+            className="fixed left-[max(0.4rem,var(--sal))] top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-1 print:hidden lg:hidden"
+            aria-label="Spends and email"
+          >
+            <QuickDock compact />
+            <button
+              type="button"
+              onClick={() => setDockOpen(false)}
+              className="flex h-8 w-12 items-center justify-center rounded-xl border border-gold/25 bg-panel/95 text-paper/50 shadow-sm hover:text-gold"
+              aria-label="Hide Spends and Emails"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          </nav>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDockOpen(true)}
+            className="fixed left-[max(0.15rem,var(--sal))] top-1/2 z-30 flex h-14 w-6 -translate-y-1/2 items-center justify-center rounded-r-xl border border-l-0 border-gold/30 bg-panel/95 text-gold shadow-sm print:hidden lg:hidden"
+            aria-label="Show Spends and Emails"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
+        <main
+          key={loc.pathname}
+          className={cn(
+            "page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[calc(4.5rem+var(--sab))] sm:p-4 md:p-8 lg:pb-[max(1.25rem,var(--sab))] lg:pl-8",
+            dockOpen
+              ? "pl-[max(4rem,calc(3.5rem+var(--sal)))] sm:pl-16 md:pl-16 lg:pl-8"
+              : "pl-[max(0.85rem,calc(0.5rem+var(--sal)))] sm:pl-4 md:pl-8 lg:pl-8",
+          )}
+        >
           <Outlet />
         </main>
         <BottomBar onMore={() => setOpen(true)} />

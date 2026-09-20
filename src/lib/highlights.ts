@@ -32,12 +32,12 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 const TONE_CLASS: Record<string, string> = {
-  ok: "border-mint/45 bg-mint/15 text-mint",
-  info: "border-sky-400/45 bg-sky-400/15 text-sky-200",
-  wait: "border-white/20 bg-white/8 text-paper/80",
-  soon: "border-amber-400/50 bg-amber-400/15 text-amber-200",
-  warn: "border-orange-400/45 bg-orange-400/15 text-orange-200",
-  bad: "border-rose-400/50 bg-rose-400/15 text-rose-200",
+  ok: "border-mint/50 bg-mint/12 text-mint",
+  info: "border-sky-400/60 bg-sky-100 text-sky-800",
+  wait: "border-line bg-gold/10 text-paper/70",
+  soon: "border-amber-400/70 bg-amber-100 text-amber-800",
+  warn: "border-orange-400/60 bg-orange-100 text-orange-800",
+  bad: "border-rose-400/60 bg-rose-100 text-rose-800",
 };
 
 export const DATE_FIELDS = new Set([

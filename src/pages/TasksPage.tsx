@@ -60,10 +60,10 @@ export function TasksPage() {
         {COLS.map((col) => {
           const items = filtered.filter((r) => String(r.data.status) === col);
           return (
-            <div key={col} className="kanban-col rounded-2xl border border-white/10 bg-panel/40 p-3">
+            <div key={col} className="kanban-col rounded-2xl border border-gold/20 bg-panel/70 p-3">
               <div className="mb-2 flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-gold/80">
                 <StatusBadge value={col} />
-                <span className="rounded-full bg-white/8 px-2 py-0.5 text-paper/50">{items.length}</span>
+                <span className="rounded-full bg-gold/15 px-2 py-0.5 text-paper/70">{items.length}</span>
               </div>
               <div className="grid gap-2">
                 {items.map((row) => (

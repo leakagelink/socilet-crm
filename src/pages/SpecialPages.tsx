@@ -114,7 +114,7 @@ export function DashboardPage() {
               <h2 className="font-display text-lg">Revenue analytics</h2>
               <p className="text-xs text-paper/45">Monthly trends and breakdown</p>
             </div>
-            <div className="grid w-full min-w-0 grid-cols-3 gap-1 rounded-full border border-white/10 bg-white/4 p-1 sm:w-auto sm:flex sm:flex-wrap">
+            <div className="grid w-full min-w-0 grid-cols-3 gap-1 rounded-full border border-gold/25 bg-gold/8 p-1 sm:w-auto sm:flex sm:flex-wrap">
               {(
                 [
                   ["bar", "Bar", BarChart3],
@@ -175,7 +175,7 @@ export function DashboardPage() {
                 const title = MODULES.find((m) => m.id === row.module)?.title ?? row.module;
                 const name = String(row.data.name ?? row.data.title ?? row.data.quote_no ?? row.data.invoice_no ?? title);
                 return (
-                  <div key={row.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-white/6 bg-white/3 px-3 py-2">
+                  <div key={row.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-gold/20 bg-gold/5 px-3 py-2">
                     <div className="min-w-0">
                       <div className="truncate text-[10px] uppercase tracking-wide text-gold/70">{title}</div>
                       <div className="truncate text-sm">{name}</div>

@@ -188,7 +188,7 @@ export function CosmofeedAnalyticsPage() {
               </tr>
             ) : (
               rows.map(([name, v]) => (
-                <tr key={name} className="border-t border-white/5">
+                <tr key={name} className="border-t border-gold/15">
                   <td className="px-3 py-2 font-medium">{name}</td>
                   <td className="px-3 py-2">{v.count}</td>
                   <td className="px-3 py-2">{v.qty}</td>
@@ -266,7 +266,7 @@ export function CosmofeedComparePage() {
               </tr>
             ) : (
               productRows.map(([name, v]) => (
-                <tr key={name} className="border-t border-white/5">
+                <tr key={name} className="border-t border-gold/15">
                   <td className="px-3 py-2 font-medium">{name}</td>
                   <td className="px-3 py-2">{v.qty}</td>
                   <td className="px-3 py-2">{inr(v.sales)}</td>
@@ -303,7 +303,7 @@ export function CosmofeedComparePage() {
               [...state.ads]
                 .sort((a, b) => String(b.data.date || "").localeCompare(String(a.data.date || "")))
                 .map((r) => (
-                  <tr key={r.id} className="border-t border-white/5">
+                  <tr key={r.id} className="border-t border-gold/15">
                     <td className="px-3 py-2 whitespace-nowrap">{String(r.data.date || "").slice(0, 10) || "—"}</td>
                     <td className="px-3 py-2">{productName(r)}</td>
                     <td className="px-3 py-2">{String(r.data.title || "—")}</td>

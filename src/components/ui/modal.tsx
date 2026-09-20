@@ -27,7 +27,7 @@ export function Modal({
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="sheet-scroll absolute inset-x-3 top-[calc(var(--sat)+0.75rem)] bottom-[calc(var(--sab)+1rem)] z-10 overflow-y-auto rounded-2xl border border-white/12 bg-panel p-4 shadow-2xl sm:inset-x-auto sm:left-1/2 sm:top-[max(6vh,calc(var(--sat)+1rem))] sm:bottom-auto sm:max-h-[86vh] sm:w-[min(560px,calc(100%-1.5rem))] sm:-translate-x-1/2 sm:p-5"
+          className="sheet-scroll absolute inset-x-3 top-[calc(var(--sat)+0.75rem)] bottom-[calc(var(--sab)+1rem)] z-10 overflow-y-auto rounded-2xl border border-gold/25 bg-panel p-4 shadow-2xl sm:inset-x-auto sm:left-1/2 sm:top-[max(6vh,calc(var(--sat)+1rem))] sm:bottom-auto sm:max-h-[86vh] sm:w-[min(560px,calc(100%-1.5rem))] sm:-translate-x-1/2 sm:p-5"
         >
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">{title}</h2>

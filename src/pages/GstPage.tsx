@@ -37,9 +37,9 @@ export function GstPage() {
       {q.isLoading ? <Card>Loading…</Card> : null}
       {!q.isLoading && !rows.length ? <Card className="text-sm text-paper/50">No dated sales yet.</Card> : null}
       {rows.length ? (
-        <div className="overflow-x-auto rounded-2xl border border-white/10">
+        <div className="overflow-x-auto rounded-2xl border border-gold/20 bg-panel">
           <table className="w-full min-w-[52rem] text-left text-sm">
-            <thead className="bg-white/[0.04] text-[11px] uppercase tracking-wide text-paper/50">
+            <thead className="bg-gold/10 text-[11px] uppercase tracking-wide text-paper/60">
               <tr>
                 {["Month", "Invoices", "Inv GST", "Digital", "Projects", "Cosmofeed", "CF GST", "Other", "Spends", "Taxable in", "GST in"].map((h) => (
                   <th key={h} className="px-3 py-2">
@@ -50,7 +50,7 @@ export function GstPage() {
             </thead>
             <tbody>
               {rows.map((m) => (
-                <tr key={m.month} className="border-t border-white/8">
+                <tr key={m.month} className="border-t border-gold/15">
                   <td className="px-3 py-2">{m.month}</td>
                   <td className="px-3 py-2">{inr(m.invoices)}</td>
                   <td className="px-3 py-2">{inr(m.invoiceGst)}</td>

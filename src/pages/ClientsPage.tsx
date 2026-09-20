@@ -181,7 +181,7 @@ function Section({
       {rows.length === 0 ? <p className="text-sm text-paper/45">None yet.</p> : null}
       <div className="grid gap-2">
         {rows.map((r) => (
-          <div key={r.id} className="rounded-xl border border-white/8 px-3 py-2 text-sm">
+          <div key={r.id} className="rounded-xl border border-gold/20 px-3 py-2 text-sm">
             {render(r)}
           </div>
         ))}

@@ -125,7 +125,7 @@ export function ModuleCrud({
 
   const cols = visibleFields(module);
   const toolbar = (
-    <div className="grid gap-3 rounded-2xl border border-white/10 bg-panel/50 p-3">
+    <div className="grid gap-3 rounded-2xl border border-gold/20 bg-panel/70 p-3">
       <Input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -287,9 +287,9 @@ export function ModuleCrud({
               </Card>
             ))}
           </div>
-          <div className="hidden overflow-x-auto rounded-2xl border border-white/10 bg-panel/50 shadow-[0_20px_50px_-32px_rgba(0,0,0,0.8)] md:block">
+          <div className="hidden overflow-x-auto rounded-2xl border border-gold/20 bg-panel/80 shadow-[0_16px_40px_-28px_rgba(11,22,36,0.2)] md:block">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-white/[0.04]">
+              <thead className="bg-gold/10">
                 <tr>
                   {cols.map((f) => (
                     <th key={f.name} className="px-3 py-3 text-[11px] uppercase tracking-wide font-medium text-paper/50">
@@ -304,7 +304,7 @@ export function ModuleCrud({
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id} className="border-t border-white/6 transition hover:bg-gold/5">
+                  <tr key={row.id} className="border-t border-gold/15 transition hover:bg-gold/5">
                     {cols.map((f) => (
                       <td key={f.name} className="max-w-48 px-3 py-3">
                         <HighlightCell field={f} value={row.data[f.name]} row={row.data} moduleId={module.id} />
