@@ -1,4 +1,5 @@
 import { listRecords } from "@/lib/db";
+import { projectReceipts } from "@/lib/projectPayments";
 
 function num(v: unknown) {
   const n = typeof v === "number" ? v : Number(v);
@@ -67,6 +68,15 @@ export async function loadGstReport(): Promise<GstMonth[]> {
     b.digital += num(r.data.amount) || num(r.data.resell_price);
   }
   for (const r of projects) {
+    const receipts = projectReceipts(r);
+    if (receipts.length) {
+      for (const p of receipts) {
+        const b = bucket(monthOf(p.date || r.data.start_date || r.created_at));
+        if (!b) continue;
+        b.projects += p.amount;
+      }
+      continue;
+    }
     const b = bucket(monthOf(r.data.start_date || r.created_at));
     if (!b) continue;
     b.projects += num(r.data.advance_amount);

@@ -1,5 +1,6 @@
 import type { RecordRow } from "@/lib/db";
 import { dayOf, inDayRange, ymd } from "@/lib/dateRange";
+import { projectReceipts } from "@/lib/projectPayments";
 
 export type LedgerKind = "projects" | "recurring" | "digital" | "other" | "cosmofeed" | "spends" | "adjustment";
 
@@ -83,6 +84,7 @@ function push(
   dateRaw: unknown,
   href: string,
   suffix = "",
+  method = "",
 ) {
   if (!amount) return;
   const date = dayOf(dateRaw) || dayOf(row.created_at);
@@ -92,7 +94,7 @@ function push(
     kind,
     title,
     amount,
-    method: String(row.data.payment_method || ""),
+    method: method || String(row.data.payment_method || ""),
     href,
   });
 }
@@ -113,6 +115,13 @@ export function buildLedger(input: {
   const out: LedgerTx[] = [];
 
   for (const r of input.projects) {
+    const receipts = projectReceipts(r);
+    if (receipts.length) {
+      for (const p of receipts) {
+        push(out, r, "projects", p.title, p.amount, p.date, "/projects", p.suffix, p.method);
+      }
+      continue;
+    }
     push(
       out,
       r,

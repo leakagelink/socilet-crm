@@ -1,5 +1,6 @@
 import { db, cloudLive, listRecords, type RecordRow, type SettingsRow } from "@/lib/db";
 import { apiJson } from "@/lib/apiBase";
+import { projectCashIn, projectReceipts } from "@/lib/projectPayments";
 
 export type MonthBucket = {
   month: string;
@@ -118,7 +119,7 @@ async function writeFinance(base: number) {
 export async function loadFinance(): Promise<FinanceSnapshot> {
   const settings = await readFinance();
   const base = settings.base_balance ?? 0;
-  const [other, cosmofeedRows, recurring, invoices, spends, investments, digital, addons, projects] = await Promise.all([
+  const [other, cosmofeedRows, recurring, invoices, spends, investments, digital, addons, projects, adjustments] = await Promise.all([
     listRecords("other_income"),
     listRecords("cosmofeed"),
     listRecords("recurring_earnings"),
@@ -128,6 +129,7 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
     listRecords("digital_products"),
     listRecords("project_addons"),
     listRecords("projects"),
+    listRecords("balance_tracker"),
   ]);
   const paidInvoices = invoices.filter((r) => String(r.data.status).toLowerCase() === "paid");
   const paidAddons = addons.filter((r) => String(r.data.status).toLowerCase() === "paid");
@@ -142,15 +144,20 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
     return acc + Math.max(0, num(r.data.resell_price) - num(r.data.amount));
   }, 0);
   const projectsTotal = sumField(projects, "total_amount");
-  const pending = sumField(projects, "remaining_amount");
-  const projectAdvances = sumField(projects, "advance_amount");
+  const pending = projects.reduce((acc, r) => {
+    const status = String(r.data.status || "").toLowerCase();
+    if (status === "completed" || status === "done") return acc;
+    return acc + Math.max(0, num(r.data.total_amount) - projectCashIn(r));
+  }, 0);
+  const projectReceived = projects.reduce((acc, r) => acc + projectCashIn(r), 0);
   const paidAddonSum = sumAmount(paidAddons);
+  const adjustmentSum = sumAmount(adjustments);
   const totalIncome =
-    otherIncome + cosmofeed + monthlyRecurring + sumAmount(paidInvoices) + sumAmount(digital) + paidAddonSum;
+    otherIncome + cosmofeed + monthlyRecurring + sumAmount(paidInvoices) + digitalSales + paidAddonSum + projectReceived + adjustmentSum;
   const totalSpends = sumAmount(spends);
   const available = base + totalIncome - totalSpends;
-  /** Old CRM “Total Revenue / Received amount” = cash already in from other + digital + cosmofeed + project advances */
-  const totalRevenue = otherIncome + digitalSales + cosmofeed + projectAdvances;
+  /** Cash already in: other + digital + cosmofeed + project receipts (incl. completed) */
+  const totalRevenue = otherIncome + digitalSales + cosmofeed + projectReceived;
 
   const buckets = new Map<string, MonthBucket>();
   const bump = (key: string, field: keyof Omit<MonthBucket, "month" | "label">, value: number) => {
@@ -163,7 +170,9 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
   for (const r of other) bump(monthKey(r.data.date || r.created_at), "other", receivedOf(r));
   for (const r of cosmofeedRows) bump(monthKey(r.data.date || r.created_at), "cosmofeed", num(r.data.amount));
   for (const r of activeRecurring) bump(monthKey(r.data.start_date || r.data.date || r.created_at), "recurring", num(r.data.amount));
-  for (const r of projects) bump(monthKey(r.data.start_date || r.created_at), "projects", num(r.data.advance_amount));
+  for (const r of projects) {
+    for (const p of projectReceipts(r)) bump(monthKey(p.date || r.data.start_date || r.created_at), "projects", p.amount);
+  }
   for (const r of paidAddons) bump(monthKey(r.data.date || r.created_at), "addons", num(r.data.amount));
   for (const r of paidInvoices) bump(monthKey(r.data.date || r.created_at), "invoices", num(r.data.amount));
   for (const r of spends) bump(monthKey(r.data.date || r.created_at), "spends", num(r.data.amount));

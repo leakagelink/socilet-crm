@@ -9,6 +9,8 @@ import { moduleById } from "@/lib/modules";
 import { listRecords, type RecordRow } from "@/lib/db";
 import { clientMatch, waLink } from "@/lib/pipeline";
 import { DateChip, ProjectCountdown, RemainingChip, StatusBadge } from "@/components/HighlightCell";
+import { ProjectPaymentTrail } from "@/components/ProjectPaymentsEditor";
+import { parseProjectPayments } from "@/lib/projectPayments";
 import { inr } from "@/lib/utils";
 
 function str(v: unknown) {
@@ -115,14 +117,17 @@ export function ClientDetailPage() {
         rows={d.related.projects}
         href="/projects"
         render={(r) => (
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="font-medium">{str(r.data.name)}</span>
-            <StatusBadge value={r.data.status} />
-            <DateChip value={r.data.start_date} field="start_date" label="Start" />
-            <DateChip value={r.data.end_date} field="end_date" label="End" />
-            <DateChip value={r.data.deadline} field="deadline" label="Due" />
-            <ProjectCountdown data={r.data} />
-            <span className="text-paper/55">{inr(num(r.data.remaining_amount))} pending</span>
+          <div className="grid min-w-0 gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="font-medium">{str(r.data.name)}</span>
+              <StatusBadge value={r.data.status} />
+              <DateChip value={r.data.start_date} field="start_date" label="Start" />
+              <DateChip value={r.data.end_date} field="end_date" label="End" />
+              <DateChip value={r.data.deadline} field="deadline" label="Due" />
+              <ProjectCountdown data={r.data} />
+              <span className="text-paper/55">{inr(num(r.data.remaining_amount))} pending</span>
+            </div>
+            <ProjectPaymentTrail client={str(r.data.client) || str(c.data.name)} pays={parseProjectPayments(r.data)} />
           </div>
         )}
       />

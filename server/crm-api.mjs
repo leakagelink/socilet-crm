@@ -270,7 +270,7 @@ export async function handleCrmRequest(req, res, env = process.env) {
       const state = loadState();
       state.settings.finance = {
         id: "finance",
-        base_balance: Number(input.base_balance) || 0,
+        base_balance: Number.isFinite(Number(input.base_balance)) ? Number(input.base_balance) : 0,
         updated_at: new Date().toISOString(),
       };
       saveState(state);

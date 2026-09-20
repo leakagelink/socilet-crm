@@ -75,7 +75,7 @@ export const MODULES: ModuleDef[] = [
     id: "projects",
     title: "Projects",
     path: "/projects",
-    description: "Client work and retainers",
+    description: "Client work — dated advances, partials, and final payments",
     fields: [
       { name: "name", label: "Name", kind: "text" },
       { name: "client", label: "Client", kind: "text" },
@@ -84,7 +84,7 @@ export const MODULES: ModuleDef[] = [
       { name: "client_phone", label: "Client phone", kind: "text", optional: true },
       { name: "status", label: "Status", kind: "select", options: ["planned", "running", "active", "paused", "completed", "done"] },
       { name: "total_amount", label: "Total (INR)", kind: "number" },
-      { name: "advance_amount", label: "Advance (INR)", kind: "number" },
+      { name: "advance_amount", label: "Received (INR)", kind: "number" },
       { name: "remaining_amount", label: "Remaining (INR)", kind: "number" },
       { name: "payment_method", label: "Payment method", kind: "select", options: ["UPI", "Card", "Bank", "Other"] },
       { name: "start_date", label: "Start", kind: "date", optional: true },

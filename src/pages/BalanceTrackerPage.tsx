@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFinance } from "@/hooks/useFinance";
@@ -8,6 +8,7 @@ import { rangeBounds, type RangePreset } from "@/lib/dateRange";
 import { buildLedger, LEDGER_KINDS, ledgerTotals, type LedgerKind } from "@/lib/ledger";
 import { moduleById } from "@/lib/modules";
 import { inr } from "@/lib/utils";
+import { AvailableBalanceEditor } from "@/components/AvailableBalanceEditor";
 import { DateRangeBar } from "@/components/DateRangeBar";
 import { AnimatedInr } from "@/components/AnimatedInr";
 import { PageHeader } from "@/components/PageHeader";
@@ -94,7 +95,13 @@ export function BalanceTrackerPage() {
 
       {f.data ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Hero label="Available" hint="Base + all income − spends" value={f.data.available} className="from-violet-600/90 to-fuchsia-600/70" />
+          <Hero
+            label="Available"
+            hint="Edit like old CRM · earnings add on top"
+            value={f.data.available}
+            className="from-violet-600/90 to-fuchsia-600/70"
+            extra={<AvailableBalanceEditor available={f.data.available} />}
+          />
           <Hero label="Period in" hint="Filtered income" value={totals.income} className="from-teal-500/90 to-cyan-600/70" />
           <Hero label="Period spends" hint="Filtered outflows" value={totals.out} className="from-rose-500/90 to-orange-500/70" />
           <Hero label="Period net" hint="In − spends" value={totals.net} className="from-sky-600/90 to-indigo-600/70" />
@@ -204,8 +211,8 @@ export function BalanceTrackerPage() {
           </Button>
         </div>
         <div className="grid gap-2">
-          <Label>Desired available (reverse)</Label>
-          <p className="text-xs text-paper/50">base = desired − totalIncome + totalSpends</p>
+          <Label>Edit available (INR)</Label>
+          <p className="text-xs text-paper/50">Dashboard wala same number. Save se available set ho jata hai; earnings uske upar add hoti hain.</p>
           <Input value={desired} onChange={(e) => setDesired(e.target.value)} type="number" />
           <Button
             variant="outline"
@@ -214,7 +221,7 @@ export function BalanceTrackerPage() {
               await qc.invalidateQueries({ queryKey: ["finance"] });
             }}
           >
-            Solve base
+            Solve / set available
           </Button>
         </div>
         {f.data ? (
@@ -230,7 +237,19 @@ export function BalanceTrackerPage() {
   );
 }
 
-function Hero({ label, hint, value, className }: { label: string; hint: string; value: number; className: string }) {
+function Hero({
+  label,
+  hint,
+  value,
+  className,
+  extra,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  className: string;
+  extra?: ReactNode;
+}) {
   return (
     <div className={cn("shine min-w-0 rounded-2xl bg-gradient-to-br p-4 text-white", className)}>
       <div className="text-[11px] uppercase tracking-wide text-white/80">{label}</div>
@@ -238,6 +257,7 @@ function Hero({ label, hint, value, className }: { label: string; hint: string; 
         <AnimatedInr value={value} />
       </div>
       <div className="mt-1 text-xs text-white/70">{hint}</div>
+      {extra ? <div className="mt-3">{extra}</div> : null}
     </div>
   );
 }

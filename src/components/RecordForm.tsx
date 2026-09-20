@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
@@ -6,6 +6,8 @@ import type { FieldDef, ModuleDef } from "@/lib/modules";
 import { listRecords } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { ProjectPaymentsEditor } from "@/components/ProjectPaymentsEditor";
+import { parseProjectPayments, receivedFromPayments, settleIfComplete } from "@/lib/projectPayments";
 
 function money(v: unknown) {
   const n = typeof v === "number" ? v : Number(v);
@@ -50,6 +52,8 @@ export function RecordForm({
   const advance = form.watch("advance_amount");
   const quantity = form.watch("quantity");
   const product = form.watch("product");
+  const isProject = module.id === "projects";
+  const [pays, setPays] = useState(() => parseProjectPayments(defaults));
 
   const lookupMods = [...new Set(module.fields.filter((f) => f.kind === "lookup" && f.lookupModule).map((f) => f.lookupModule!))];
   const catalogs = useQuery({
@@ -63,8 +67,10 @@ export function RecordForm({
 
   useEffect(() => {
     if (!autoRemain) return;
-    form.setValue("remaining_amount", Math.max(0, money(total) - money(advance)), { shouldValidate: true });
-  }, [autoRemain, total, advance, form]);
+    const received = isProject ? receivedFromPayments(pays) : money(advance);
+    form.setValue("advance_amount", received, { shouldValidate: true });
+    form.setValue("remaining_amount", Math.max(0, money(total) - received), { shouldValidate: true });
+  }, [autoRemain, isProject, total, advance, pays, form]);
 
   useEffect(() => {
     if (module.id !== "cosmofeed") return;
@@ -102,7 +108,9 @@ export function RecordForm({
     <form
       className="grid gap-3 pb-2"
       onSubmit={form.handleSubmit(async (v) => {
-        if (autoRemain) {
+        if (isProject) {
+          Object.assign(v, settleIfComplete(v, pays));
+        } else if (autoRemain) {
           v.remaining_amount = Math.max(0, money(v.total_amount) - money(v.advance_amount));
         }
         for (const f of module.fields) {
@@ -114,9 +122,10 @@ export function RecordForm({
       })}
     >
       {module.fields.map((f) => {
+        if (isProject && f.name === "advance_amount") return null;
         if (!fieldVisible(f)) return null;
         const err = form.formState.errors[f.name]?.message as string | undefined;
-        const derived = autoRemain && f.name === "remaining_amount";
+        const derived = autoRemain && (f.name === "remaining_amount" || (isProject && f.name === "advance_amount"));
         const lookupRows = f.kind === "lookup" ? catalogs.data?.[f.lookupModule || ""] ?? [] : [];
         const current = String(form.watch(f.name) || "");
         const labels = lookupRows
@@ -125,7 +134,7 @@ export function RecordForm({
           .filter(Boolean);
         const unique = [...new Set(labels)];
         if (current && !unique.includes(current)) unique.unshift(current);
-        return (
+        const fieldBlock = (
           <div key={f.name} className="grid gap-1">
             <Label htmlFor={f.name}>
               {f.label}
@@ -173,9 +182,24 @@ export function RecordForm({
                 {...form.register(f.name, { valueAsNumber: f.kind === "number" })}
               />
             )}
-            {err ? <p className="text-xs text-red-400">{err}</p> : null}
+            {err ? <p className="text-xs text-red-600">{err}</p> : null}
           </div>
         );
+        if (isProject && f.name === "total_amount") {
+          return (
+            <div key="project-total-pays" className="grid gap-3">
+              {fieldBlock}
+              <ProjectPaymentsEditor
+                client={String(form.watch("client") || "")}
+                total={money(total)}
+                method={String(form.watch("payment_method") || "UPI")}
+                pays={pays}
+                onChange={setPays}
+              />
+            </div>
+          );
+        }
+        return fieldBlock;
       })}
       <Button type="submit" className="w-full sm:w-auto" disabled={submitting}>
         {submitting ? "Saving…" : "Save"}
