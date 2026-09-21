@@ -4,6 +4,7 @@ import { extname, join } from "node:path";
 import { handleEmailRequest } from "./server/email-api.mjs";
 import { handleCrmRequest, runDailyBackup } from "./server/crm-api.mjs";
 import { handleAuthRequest } from "./server/auth-api.mjs";
+import { handleMeetRequest } from "./server/meet-api.mjs";
 
 const dist = join(import.meta.dirname, "dist");
 const port = Number(process.env.PORT || 43721);
@@ -25,6 +26,10 @@ createServer(async (req, res) => {
   }
   if (path.startsWith("/api/email")) {
     await handleEmailRequest(req, res, process.env);
+    return;
+  }
+  if (path.startsWith("/api/meet")) {
+    await handleMeetRequest(req, res, process.env);
     return;
   }
   if (path.startsWith("/api/crm")) {

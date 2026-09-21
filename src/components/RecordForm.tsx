@@ -9,7 +9,20 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { ProjectPaymentsEditor } from "@/components/ProjectPaymentsEditor";
 import { FileAttachments } from "@/components/FileAttachments";
 import { parseAttachments, type Attachment } from "@/lib/attachments";
+import { ensureClientRecord } from "@/lib/pipeline";
 import { applyCollections, parseCollections, parseProjectPayments, receivedFromPayments, settleIfComplete } from "@/lib/projectPayments";
+import { applyLendBorrow, expectedTotal, installmentAmount, isLend } from "@/lib/lendBorrow";
+
+const FIELD_OPTION_LABELS: Record<string, Record<string, string>> = {
+  direction: { lend: "Lend — maine diya", borrow: "Borrow — maine liya" },
+  payout: {
+    monthly: "Monthly",
+    yearly: "Yearly",
+    one_time: "Ek saath (lump sum)",
+    ongoing: "Abhi mil / de rahe hain",
+  },
+  status: { open: "Open", receiving: "Running", overdue: "Overdue", settled: "Settled" },
+};
 
 function money(v: unknown) {
   const n = typeof v === "number" ? v : Number(v);
@@ -54,8 +67,15 @@ export function RecordForm({
   const advance = form.watch("advance_amount");
   const quantity = form.watch("quantity");
   const product = form.watch("product");
+  const lbAmount = form.watch("amount");
+  const lbRoi = form.watch("roi_percent");
+  const lbPayout = form.watch("payout");
+  const lbStart = form.watch("start_date");
+  const lbDue = form.watch("due_date");
+  const lbDirection = form.watch("direction");
   const isProject = module.id === "projects";
   const isRecurring = module.id === "recurring_earnings";
+  const isLendBorrow = module.id === "lend_borrow";
   const [pays, setPays] = useState(() => parseProjectPayments(defaults));
   const [cols, setCols] = useState(() => parseCollections(defaults));
   const [files, setFiles] = useState<Attachment[]>(() => parseAttachments(defaults?.attachments));
@@ -78,6 +98,22 @@ export function RecordForm({
     form.setValue("advance_amount", received, { shouldValidate: true });
     form.setValue("remaining_amount", Math.max(0, money(total) - received), { shouldValidate: true });
   }, [autoRemain, isProject, total, advance, pays, form]);
+
+  useEffect(() => {
+    if (!isLendBorrow) return;
+    const data = {
+      amount: lbAmount,
+      roi_percent: lbRoi,
+      payout: lbPayout,
+      start_date: lbStart,
+      due_date: lbDue,
+    };
+    form.setValue("expected_return", expectedTotal(lbAmount, lbRoi), { shouldValidate: true });
+    form.setValue("installment_amount", installmentAmount(data), { shouldValidate: true });
+    const paid = cols.length ? receivedFromPayments(cols) : money(form.getValues("received_amount"));
+    form.setValue("received_amount", paid, { shouldValidate: true });
+    form.setValue("remaining_amount", Math.max(0, expectedTotal(lbAmount, lbRoi) - paid), { shouldValidate: true });
+  }, [isLendBorrow, lbAmount, lbRoi, lbPayout, lbStart, lbDue, cols, form]);
 
   useEffect(() => {
     if (module.id !== "cosmofeed") return;
@@ -125,10 +161,21 @@ export function RecordForm({
           Object.assign(v, settleIfComplete(v, pays));
         } else if (isRecurring) {
           Object.assign(v, applyCollections(v, cols));
+        } else if (isLendBorrow) {
+          Object.assign(v, applyCollections(applyLendBorrow(v, cols), cols));
         } else if (autoRemain) {
           v.remaining_amount = Math.max(0, money(v.total_amount) - money(v.advance_amount));
         }
         if (wantsFiles) v.attachments = files;
+        if (module.id !== "clients" && (String(v.client ?? "").trim() || String(v.client_email ?? "").trim())) {
+          const client = await ensureClientRecord(v);
+          if (client) {
+            v.client_id = client.id;
+            v.client = String(client.data.name || v.client || "");
+            if (!String(v.client_email ?? "").trim()) v.client_email = client.data.email || "";
+            if (!String(v.client_phone ?? "").trim()) v.client_phone = client.data.phone || "";
+          }
+        }
         for (const f of module.fields) {
           if (f.showWhen && String(v[f.showWhen.field] ?? "") !== f.showWhen.equals) {
             v[f.name] = f.kind === "number" ? 0 : f.kind === "checkbox" ? false : "";
@@ -140,6 +187,7 @@ export function RecordForm({
       {module.fields.map((f) => {
         if (isProject && f.name === "advance_amount") return null;
         if (isRecurring && (f.name === "last_paid_date" || f.name === "last_paid_amount")) return null;
+        if (isLendBorrow && ["expected_return", "remaining_amount", "installment_amount", "received_amount"].includes(f.name)) return null;
         if (f.name === "project_id") return null;
         if (!fieldVisible(f)) return null;
         const err = form.formState.errors[f.name]?.message as string | undefined;
@@ -170,7 +218,7 @@ export function RecordForm({
               >
                 {f.options?.map((o) => (
                   <option key={o} value={o}>
-                    {o}
+                    {FIELD_OPTION_LABELS[f.name]?.[o] ?? o}
                   </option>
                 ))}
               </select>
@@ -242,6 +290,41 @@ export function RecordForm({
           onChange={setCols}
           openEnded
         />
+      ) : null}
+      {isLendBorrow ? (
+        <>
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-gold/20 bg-gold/5 p-3 text-xs sm:grid-cols-4">
+            <div>
+              <div className="text-paper/45">Principal + ROI</div>
+              <div className="font-medium">{expectedTotal(lbAmount, lbRoi).toLocaleString("en-IN")}</div>
+            </div>
+            <div>
+              <div className="text-paper/45">Installment</div>
+              <div className="font-medium">{installmentAmount({ amount: lbAmount, roi_percent: lbRoi, payout: lbPayout, start_date: lbStart, due_date: lbDue }).toLocaleString("en-IN")}</div>
+            </div>
+            <div>
+              <div className="text-paper/45">Settled</div>
+              <div className="font-medium">{receivedFromPayments(cols).toLocaleString("en-IN")}</div>
+            </div>
+            <div>
+              <div className="text-paper/45">Remaining</div>
+              <div className="font-medium">{Math.max(0, expectedTotal(lbAmount, lbRoi) - receivedFromPayments(cols)).toLocaleString("en-IN")}</div>
+            </div>
+          </div>
+          <ProjectPaymentsEditor
+            client={String(form.watch("party") || "person")}
+            total={expectedTotal(lbAmount, lbRoi)}
+            method={String(form.watch("payment_method") || "UPI")}
+            pays={cols}
+            onChange={setCols}
+            title={isLend({ direction: lbDirection }) ? "Wapas milne wali rashi (EMI / lump sum)" : "Wapas dene wali rashi (EMI / lump sum)"}
+            hint={
+              isLend({ direction: lbDirection })
+                ? "Jitna unhone wapas diya — date ke sath. Monthly/yearly ho to har installment yahan."
+                : "Jitna tumne wapas kiya — date ke sath. Monthly/yearly ho to har installment yahan."
+            }
+          />
+        </>
       ) : null}
       {wantsFiles ? <FileAttachments files={files} onChange={setFiles} /> : null}
       <Button type="submit" className="w-full sm:w-auto" disabled={submitting}>

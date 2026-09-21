@@ -1,8 +1,9 @@
 import type { RecordRow } from "@/lib/db";
 import { dayOf, inDayRange, ymd } from "@/lib/dateRange";
 import { parseCollections, projectReceipts } from "@/lib/projectPayments";
+import { isLend, paidOnDeal } from "@/lib/lendBorrow";
 
-export type LedgerKind = "projects" | "recurring" | "digital" | "other" | "cosmofeed" | "spends" | "adjustment";
+export type LedgerKind = "projects" | "recurring" | "digital" | "other" | "cosmofeed" | "spends" | "adjustment" | "lend_borrow";
 
 export type LedgerTx = {
   id: string;
@@ -22,6 +23,7 @@ export const LEDGER_KINDS: { id: LedgerKind | "all"; label: string }[] = [
   { id: "other", label: "Other income" },
   { id: "cosmofeed", label: "Cosmofeed" },
   { id: "spends", label: "Spends" },
+  { id: "lend_borrow", label: "Lend / borrow" },
   { id: "adjustment", label: "Adjustments" },
 ];
 
@@ -108,6 +110,7 @@ export function buildLedger(input: {
   cosmofeed: RecordRow[];
   spends: RecordRow[];
   adjustments: RecordRow[];
+  lendBorrow?: RecordRow[];
   from: string;
   to: string;
 }): LedgerTx[] {
@@ -196,6 +199,51 @@ export function buildLedger(input: {
   for (const r of input.spends) {
     push(out, r, "spends", String(r.data.title || r.data.category || "Spend"), -Math.abs(money(r.data.amount)), r.data.date || r.created_at, "/spends");
   }
+  for (const r of input.lendBorrow ?? []) {
+    const party = String(r.data.party || "Person");
+    const lend = isLend(r.data);
+    const principal = money(r.data.amount);
+    push(
+      out,
+      r,
+      "lend_borrow",
+      lend ? `Lent to ${party}` : `Borrowed from ${party}`,
+      lend ? -Math.abs(principal) : principal,
+      r.data.start_date || r.created_at,
+      "/lend-borrow",
+      "principal",
+    );
+    const cols = parseCollections(r.data);
+    if (cols.length) {
+      for (const c of cols) {
+        push(
+          out,
+          r,
+          "lend_borrow",
+          lend ? `Return from ${party}` : `Repaid ${party}`,
+          lend ? c.amount : -Math.abs(c.amount),
+          c.date,
+          "/lend-borrow",
+          c.id,
+          c.method,
+        );
+      }
+    } else {
+      const paid = paidOnDeal(r.data);
+      if (paid) {
+        push(
+          out,
+          r,
+          "lend_borrow",
+          lend ? `Return from ${party}` : `Repaid ${party}`,
+          lend ? paid : -Math.abs(paid),
+          r.data.due_date || r.updated_at,
+          "/lend-borrow",
+          "settled",
+        );
+      }
+    }
+  }
   for (const r of input.adjustments) {
     push(out, r, "adjustment", String(r.data.note || "Adjustment"), money(r.data.amount), r.data.date || r.created_at, "/balance-tracker");
   }
@@ -213,8 +261,9 @@ export function ledgerTotals(rows: LedgerTx[]) {
   const other = sum("other");
   const cosmofeed = sum("cosmofeed");
   const spends = Math.abs(sum("spends"));
+  const lendBorrow = sum("lend_borrow");
   const adjustments = sum("adjustment");
-  const income = projects + recurring + digital + other + cosmofeed + Math.max(0, adjustments);
-  const out = spends + Math.max(0, -adjustments);
-  return { projects, recurring, digital, other, cosmofeed, spends, adjustments, income, out, net: income - out };
+  const income = projects + recurring + digital + other + cosmofeed + Math.max(0, adjustments) + Math.max(0, lendBorrow);
+  const out = spends + Math.max(0, -adjustments) + Math.max(0, -lendBorrow);
+  return { projects, recurring, digital, other, cosmofeed, spends, adjustments, lendBorrow, income, out, net: income - out };
 }

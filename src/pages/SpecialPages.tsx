@@ -30,6 +30,8 @@ import {
   LineChart,
   PieChart,
   TrendingUp,
+  Handshake,
+  Calculator,
 } from "lucide-react";
 
 export function DashboardPage() {
@@ -38,7 +40,7 @@ export function DashboardPage() {
   const counts = useQuery({
     queryKey: ["dash-counts"],
     queryFn: async () => {
-      const keys = ["projects", "tasks", "invoices", "reminders", "quotations", "investments"] as const;
+      const keys = ["projects", "tasks", "invoices", "reminders", "quotations", "investments", "lend_borrow"] as const;
       const pairs = await Promise.all(keys.map(async (k) => [k, (await listRecords(k)).length] as const));
       return Object.fromEntries(pairs) as Record<(typeof keys)[number], number>;
     },
@@ -47,7 +49,7 @@ export function DashboardPage() {
   const activity = useQuery({
     queryKey: ["dash-activity"],
     queryFn: async () => {
-      const keys = ["projects", "tasks", "invoices", "quotations", "reminders", "spends", "other_income", "investments"];
+      const keys = ["projects", "tasks", "invoices", "quotations", "reminders", "spends", "other_income", "investments", "lend_borrow"];
       const rows = (await Promise.all(keys.map(listRecords))).flat();
       return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
     },
@@ -61,6 +63,8 @@ export function DashboardPage() {
     ["Quotes", "/quotations", counts.data?.quotations ?? 0, FileText],
     ["Reminders", "/reminders", counts.data?.reminders ?? 0, Clock],
     ["Investments", "/investments", counts.data?.investments ?? 0, TrendingUp],
+    ["Lend/Borrow", "/lend-borrow", counts.data?.lend_borrow ?? 0, Handshake],
+    ["Calculator", "/calculator", "INR", Calculator],
   ] as const;
 
   return (
@@ -116,6 +120,8 @@ export function DashboardPage() {
           <StatTile icon={BadgePercent} label="Digital profit" hint="Net profit" value={d.digitalProfit} tone="text-sky-300" />
           <StatTile icon={Coins} label="Other income" hint="Miscellaneous" value={d.otherIncome} tone="text-orange-300" />
           <StatTile icon={TrendingUp} label="Investments" hint="Parked capital (current)" value={d.investments} tone="text-indigo-500" />
+          <StatTile icon={Handshake} label="To collect (lent)" hint="Lend remaining incl. ROI" value={d.lentCollect} tone="text-mint" />
+          <StatTile icon={Handshake} label="To repay (borrowed)" hint="Borrow remaining incl. ROI" value={d.borrowedRepay} tone="text-amber-300" />
         </div>
       ) : null}
 

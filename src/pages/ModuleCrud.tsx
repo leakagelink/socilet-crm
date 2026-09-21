@@ -11,7 +11,8 @@ import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/PageHeader";
 import { HighlightCell, ProjectCountdown, StatusBadge } from "@/components/HighlightCell";
 import { ProjectPaymentTrail } from "@/components/ProjectPaymentsEditor";
-import { parseProjectPayments } from "@/lib/projectPayments";
+import { parseCollections, parseProjectPayments } from "@/lib/projectPayments";
+import { expectedInterest, isLend } from "@/lib/lendBorrow";
 import { AnimatedInr } from "@/components/AnimatedInr";
 import { chipFields, insightTiles, moduleKicker, money as viewMoney, rowMoney, rowSubtitle, rowTitle } from "@/lib/moduleView";
 import { inr } from "@/lib/utils";
@@ -303,6 +304,26 @@ export function ModuleCrud({
                     </div>
                   </div>
                 ) : null}
+                {module.id === "lend_borrow" ? (
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-xl bg-gold/10 px-2 py-1.5">
+                      <div className="text-paper/45">{isLend(row.data) ? "Diya" : "Liya"}</div>
+                      <div className="font-medium">{inr(viewMoney(row.data.amount))}</div>
+                    </div>
+                    <div className="rounded-xl bg-gold/10 px-2 py-1.5">
+                      <div className="text-paper/45">ROI {viewMoney(row.data.roi_percent)}%</div>
+                      <div className="font-medium text-mint">{inr(expectedInterest(row.data.amount, row.data.roi_percent))}</div>
+                    </div>
+                    <div className="rounded-xl bg-gold/10 px-2 py-1.5">
+                      <div className="text-paper/45">Settled</div>
+                      <div className="font-medium">{inr(viewMoney(row.data.received_amount))}</div>
+                    </div>
+                    <div className="rounded-xl bg-gold/10 px-2 py-1.5">
+                      <div className="text-paper/45">EMI</div>
+                      <div className="font-medium">{inr(viewMoney(row.data.installment_amount))}</div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-1">
                   {chips.map((f) => (
                     <div key={f.name} className="max-w-full">
@@ -331,6 +352,14 @@ export function ModuleCrud({
                         </div>
                       );
                     })()}
+                  </div>
+                ) : null}
+                {module.id === "lend_borrow" ? (
+                  <div className="mt-3 rounded-xl border border-gold/15 bg-gold/5 px-3 py-2">
+                    <div className="mb-1 text-[10px] uppercase tracking-wide text-paper/40">
+                      {isLend(row.data) ? "Received back" : "Paid back"}
+                    </div>
+                    <ProjectPaymentTrail client={String(row.data.party || "")} pays={parseCollections(row.data)} />
                   </div>
                 ) : null}
                 <div className="mt-auto flex flex-wrap gap-2 pt-4">

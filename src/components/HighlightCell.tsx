@@ -106,5 +106,14 @@ export function HighlightCell({
     return typeof value === "number" ? <span>{inr(value)}</span> : <span>{String(value ?? "")}</span>;
   }
   if (typeof value === "boolean") return <span>{value ? "yes" : "no"}</span>;
-  return <span className="truncate">{String(value ?? "")}</span>;
+  const pretty: Record<string, string> = {
+    lend: "Lent",
+    borrow: "Borrowed",
+    monthly: "Monthly",
+    yearly: "Yearly",
+    one_time: "Ek saath",
+    ongoing: "Running",
+  };
+  const text = String(value ?? "");
+  return <span className="truncate">{pretty[text] ?? text}</span>;
 }

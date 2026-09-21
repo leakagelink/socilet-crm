@@ -1,5 +1,5 @@
-import { insertRecord, listRecords, updateRecord, type RecordRow } from "@/lib/db";
-import { uid } from "@/lib/utils";
+import { insertRecord, listRecords, mergeRecords, updateRecord, type RecordRow } from "@/lib/db";
+import { nowIso, uid } from "@/lib/utils";
 
 function num(v: unknown) {
   const n = typeof v === "number" ? v : Number(v);
@@ -82,4 +82,139 @@ export function clientMatch(row: RecordRow, client: RecordRow) {
   if (email && str(row.data.client_email).toLowerCase() === email) return true;
   if (email && str(row.data.email).toLowerCase() === email) return true;
   return false;
+}
+
+function first(...vals: unknown[]) {
+  for (const v of vals) {
+    const s = str(v);
+    if (s) return s;
+  }
+  return "";
+}
+
+function findClient(clients: RecordRow[], hint: { id?: string; name?: string; email?: string }) {
+  const id = str(hint.id);
+  const email = str(hint.email).toLowerCase();
+  const name = str(hint.name).toLowerCase();
+  if (id) {
+    const byId = clients.find((c) => c.id === id);
+    if (byId) return byId;
+  }
+  if (email) {
+    const byEmail = clients.find((c) => str(c.data.email).toLowerCase() === email);
+    if (byEmail) return byEmail;
+  }
+  if (name) {
+    const byName = clients.find((c) => str(c.data.name).toLowerCase() === name);
+    if (byName) return byName;
+  }
+  return undefined;
+}
+
+function clientPayload(src: Record<string, unknown>) {
+  return {
+    name: first(src.client),
+    company: first(src.company),
+    email: first(src.client_email, src.email),
+    phone: first(src.client_phone, src.phone),
+    gstin: first(src.client_gstin, src.gstin),
+    upi: first(src.upi),
+    address: first(src.client_address, src.address),
+    notes: "",
+  };
+}
+
+/** Create or reuse a Clients row from a project/invoice name so the Clients list is complete. */
+export async function ensureClientRecord(src: Record<string, unknown>) {
+  const data = clientPayload(src);
+  if (!data.name && !data.email) return undefined;
+  const clients = await listRecords("clients");
+  const existing = findClient(clients, { id: str(src.client_id), name: data.name, email: data.email });
+  if (existing) {
+    const next = {
+      ...existing.data,
+      name: first(existing.data.name, data.name),
+      email: first(existing.data.email, data.email),
+      phone: first(existing.data.phone, data.phone),
+      gstin: first(existing.data.gstin, data.gstin),
+      address: first(existing.data.address, data.address),
+      company: first(existing.data.company, data.company),
+    };
+    const changed = JSON.stringify(next) !== JSON.stringify(existing.data);
+    if (changed) {
+      const row = { ...existing, data: next, updated_at: nowIso() };
+      await mergeRecords([row]);
+      return row;
+    }
+    return existing;
+  }
+  const t = nowIso();
+  const row: RecordRow = {
+    id: uid(),
+    module: "clients",
+    data,
+    created_at: t,
+    updated_at: t,
+  };
+  await mergeRecords([row]);
+  return row;
+}
+
+/** Pull unique names from projects, invoices, quotes, retainers into Clients. */
+export async function syncClientsFromWork() {
+  const [clients, projects, invoices, quotes, recurring] = await Promise.all([
+    listRecords("clients"),
+    listRecords("projects"),
+    listRecords("invoices"),
+    listRecords("quotations"),
+    listRecords("recurring_earnings"),
+  ]);
+  const all = [...clients];
+  const toSave: RecordRow[] = [];
+  const work = [...projects, ...invoices, ...quotes, ...recurring];
+
+  for (const row of work) {
+    const payload = clientPayload(row.data);
+    if (!payload.name && !payload.email) continue;
+    let client: RecordRow | undefined = findClient(all, { id: str(row.data.client_id), name: payload.name, email: payload.email });
+    if (!client) {
+      const t = row.created_at || nowIso();
+      client = {
+        id: uid(),
+        module: "clients",
+        data: payload,
+        created_at: t,
+        updated_at: t,
+      };
+      all.push(client);
+      toSave.push(client);
+    } else {
+      const next = {
+        ...client.data,
+        name: first(client.data.name, payload.name),
+        email: first(client.data.email, payload.email),
+        phone: first(client.data.phone, payload.phone),
+        gstin: first(client.data.gstin, payload.gstin),
+        address: first(client.data.address, payload.address),
+        company: first(client.data.company, payload.company),
+      };
+      if (JSON.stringify(next) !== JSON.stringify(client.data)) {
+        const updated = { ...client, data: next, updated_at: nowIso() };
+        const i = all.findIndex((c) => c.id === updated.id);
+        if (i >= 0) all[i] = updated;
+        toSave.push(updated);
+        client = updated;
+      }
+    }
+    if (str(row.data.client_id) !== client.id) {
+      toSave.push({
+        ...row,
+        data: { ...row.data, client_id: client.id, client: first(row.data.client, client.data.name) },
+        updated_at: nowIso(),
+      });
+    }
+  }
+
+  if (toSave.length) await mergeRecords(toSave);
+  return { created: toSave.filter((r) => r.module === "clients").length, linked: toSave.length };
 }

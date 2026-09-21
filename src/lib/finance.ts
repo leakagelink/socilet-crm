@@ -1,6 +1,7 @@
 import { db, cloudLive, listRecords, type RecordRow, type SettingsRow } from "@/lib/db";
 import { apiJson } from "@/lib/apiBase";
 import { collectionCash, linkedInvoiceIds, parseCollections, projectCashIn, projectReceipts } from "@/lib/projectPayments";
+import { isLend, lendBorrowNet, remainingOnDeal } from "@/lib/lendBorrow";
 
 export type MonthBucket = {
   month: string;
@@ -22,6 +23,9 @@ export type FinanceSnapshot = {
   totalSpends: number;
   available: number;
   investments: number;
+  lendBorrowNet: number;
+  lentCollect: number;
+  borrowedRepay: number;
   polledAt: string;
   monthlyRecurring: number;
   recurringReceived: number;
@@ -120,7 +124,7 @@ async function writeFinance(base: number) {
 export async function loadFinance(): Promise<FinanceSnapshot> {
   const settings = await readFinance();
   const base = settings.base_balance ?? 0;
-  const [other, cosmofeedRows, recurring, invoices, spends, investments, digital, addons, projects, adjustments] = await Promise.all([
+  const [other, cosmofeedRows, recurring, invoices, spends, investments, digital, addons, projects, adjustments, lendBorrow] = await Promise.all([
     listRecords("other_income"),
     listRecords("cosmofeed"),
     listRecords("recurring_earnings"),
@@ -131,6 +135,7 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
     listRecords("project_addons"),
     listRecords("projects"),
     listRecords("balance_tracker"),
+    listRecords("lend_borrow"),
   ]);
   const paidInvoices = invoices.filter((r) => String(r.data.status).toLowerCase() === "paid" && !linkedInvoiceIds(projects).has(r.id));
   const paidAddons = addons.filter((r) => String(r.data.status).toLowerCase() === "paid");
@@ -157,7 +162,10 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
   const totalIncome =
     otherIncome + cosmofeed + recurringReceived + sumAmount(paidInvoices) + digitalSales + paidAddonSum + projectReceived + adjustmentSum;
   const totalSpends = sumAmount(spends);
-  const available = base + totalIncome - totalSpends;
+  const lbNet = lendBorrowNet(lendBorrow);
+  const lentCollect = lendBorrow.filter((r) => isLend(r.data)).reduce((acc, r) => acc + remainingOnDeal(r.data), 0);
+  const borrowedRepay = lendBorrow.filter((r) => !isLend(r.data)).reduce((acc, r) => acc + remainingOnDeal(r.data), 0);
+  const available = base + totalIncome - totalSpends + lbNet;
   /** Cash already in: other + digital + cosmofeed + project receipts (incl. completed) */
   const totalRevenue = otherIncome + digitalSales + cosmofeed + projectReceived;
 
@@ -199,6 +207,9 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
     totalSpends,
     available,
     investments: investments.reduce((acc, r) => acc + num(r.data.current_value ?? r.data.amount), 0),
+    lendBorrowNet: lbNet,
+    lentCollect,
+    borrowedRepay,
     polledAt: new Date().toISOString(),
     monthlyRecurring,
     recurringReceived,
@@ -217,7 +228,7 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
 /** Reverse: base_balance = desired − totalIncome + totalSpends */
 export async function setDesiredAvailable(desired: number) {
   const snap = await loadFinance();
-  const base = desired - snap.totalIncome + snap.totalSpends;
+  const base = desired - snap.totalIncome + snap.totalSpends - snap.lendBorrowNet;
   await writeFinance(base);
   return { ...snap, base, available: desired };
 }

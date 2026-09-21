@@ -26,6 +26,7 @@ const KIND_TONE: Record<LedgerKind, string> = {
   other: "text-orange-300",
   cosmofeed: "text-sky-300",
   spends: "text-rose-300",
+  lend_borrow: "text-amber-300",
   adjustment: "text-gold",
 };
 
@@ -45,7 +46,7 @@ export function BalanceTrackerPage() {
   const pack = useQuery({
     queryKey: ["balance-ledger"],
     queryFn: async () => {
-      const [projects, addons, recurring, digital, other, cosmofeed, spends, adjustments] = await Promise.all([
+      const [projects, addons, recurring, digital, other, cosmofeed, spends, adjustments, lendBorrow] = await Promise.all([
         listRecords("projects"),
         listRecords("project_addons"),
         listRecords("recurring_earnings"),
@@ -54,8 +55,9 @@ export function BalanceTrackerPage() {
         listRecords("cosmofeed"),
         listRecords("spends"),
         listRecords("balance_tracker"),
+        listRecords("lend_borrow"),
       ]);
-      return { projects, addons, recurring, digital, other, cosmofeed, spends, adjustments };
+      return { projects, addons, recurring, digital, other, cosmofeed, spends, adjustments, lendBorrow };
     },
     refetchInterval: 30_000,
   });
@@ -115,6 +117,7 @@ export function BalanceTrackerPage() {
         <Mini label="Other income" value={totals.other} />
         <Mini label="Cosmofeed" value={totals.cosmofeed} />
         <Mini label="Total spends" value={totals.spends} />
+        <Mini label="Lend / borrow" value={totals.lendBorrow} />
       </div>
 
       <Card>
@@ -126,6 +129,7 @@ export function BalanceTrackerPage() {
             { label: "Other", value: totals.other, color: "#fb923c" },
             { label: "Cosmofeed", value: totals.cosmofeed, color: "#38bdf8" },
             { label: "Spends", value: totals.spends, color: "#e07a7a" },
+            { label: "Lend/borrow", value: totals.lendBorrow, color: "#fbbf24" },
           ]}
         />
       </Card>

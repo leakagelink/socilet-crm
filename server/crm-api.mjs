@@ -150,6 +150,8 @@ function rejectLockedCreds(req, res, module) {
   return true;
 }
 
+export { loadState as loadCrmState, saveState as saveCrmState };
+
 export async function handleCrmRequest(req, res, env = process.env) {
   if (corsAndOptions(req, res, env)) return true;
   if (!guardOrigin(req, res, env)) return true;
