@@ -23,6 +23,8 @@ export function ProjectPaymentsEditor({
   onChange,
   invoices = [],
   openEnded = false,
+  title,
+  hint,
 }: {
   client: string;
   total: number;
@@ -31,6 +33,8 @@ export function ProjectPaymentsEditor({
   onChange: (next: ProjectPay[]) => void;
   invoices?: { id: string; label: string }[];
   openEnded?: boolean;
+  title?: string;
+  hint?: string;
 }) {
   const received = money(applyProjectPayments({ total_amount: total }, pays).advance_amount);
   const remaining = Math.max(0, money(total) - received);
@@ -43,11 +47,12 @@ export function ProjectPaymentsEditor({
   return (
     <div className="grid gap-2 rounded-xl border border-gold/25 bg-gold/5 p-3">
       <div>
-        <Label>{openEnded ? `Collections from ${who}` : `Payments from ${who}`}</Label>
+        <Label>{title || (openEnded ? `Collections from ${who}` : `Payments from ${who}`)}</Label>
         <p className="mt-0.5 text-xs text-paper/50">
-          {openEnded
-            ? "Har month jab retainer aaye, date + amount yahan likho. Available balance inhi collections se update hota hai."
-            : "Zero advance theek hai. Beech ki partial aur project date ke baad ki full payment — date ke sath yahin add karo."}
+          {hint ||
+            (openEnded
+              ? "Har month jab retainer aaye, date + amount yahan likho. Available balance inhi collections se update hota hai."
+              : "Zero advance theek hai. Beech ki partial aur project date ke baad ki full payment — date ke sath yahin add karo.")}
         </p>
       </div>
       {!openEnded ? (

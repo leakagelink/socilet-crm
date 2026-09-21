@@ -68,7 +68,7 @@ export async function collectAlerts(): Promise<AlertItem[]> {
   const soon = today + 2 * 86400000;
   const now = Date.now();
 
-  const [reminders, tasks, projects, invoices, quotes, recurring, emails] = await Promise.all([
+  const [reminders, tasks, projects, invoices, quotes, recurring, lendBorrow, emails] = await Promise.all([
     fromModule("reminders", "/reminders", (row) => {
       const status = str(row.data.status);
       const due = ts(row.data.due_at);
@@ -158,10 +158,27 @@ export async function collectAlerts(): Promise<AlertItem[]> {
         href: "/recurring-earnings",
       };
     }),
+    fromModule("lend_borrow", "/lend-borrow", (row) => {
+      const status = str(row.data.status);
+      if (status === "settled") return null;
+      const remain = Number(row.data.remaining_amount);
+      if (Number.isFinite(remain) && remain <= 0) return null;
+      const due = ts(row.data.due_date);
+      if (due == null || due > soon) return null;
+      const overdue = due < now;
+      const lend = ["lend", "lent"].includes(str(row.data.direction).toLowerCase());
+      return {
+        source_id: `lend:${row.id}`,
+        title: overdue ? (lend ? "Lend overdue" : "Borrow overdue") : lend ? "Lend due soon" : "Borrow due soon",
+        message: `${str(row.data.party)} · ₹${Math.round(Number(row.data.remaining_amount) || 0)}`,
+        level: overdue ? "error" : "warning",
+        href: "/lend-borrow",
+      };
+    }),
     fromEmail(),
   ]);
 
-  return [...emails, ...reminders, ...tasks, ...projects, ...invoices, ...quotes, ...recurring];
+  return [...emails, ...reminders, ...tasks, ...projects, ...invoices, ...quotes, ...recurring, ...lendBorrow];
 }
 
 export async function syncNotifications() {

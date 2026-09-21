@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ModuleCrud } from "@/pages/ModuleCrud";
 import { moduleById } from "@/lib/modules";
 import { listRecords, type RecordRow } from "@/lib/db";
-import { clientMatch, waLink } from "@/lib/pipeline";
+import { clientMatch, syncClientsFromWork, waLink } from "@/lib/pipeline";
 import { DateChip, ProjectCountdown, RemainingChip, StatusBadge } from "@/components/HighlightCell";
 import { ProjectPaymentTrail } from "@/components/ProjectPaymentsEditor";
 import { collectionCash, linkedInvoiceIds, parseCollections, parseProjectPayments, projectCashIn, projectReceipts } from "@/lib/projectPayments";
@@ -23,6 +23,12 @@ function num(v: unknown) {
 }
 
 export function ClientsPage() {
+  const sync = useQuery({
+    queryKey: ["clients-sync"],
+    queryFn: syncClientsFromWork,
+    staleTime: 30_000,
+  });
+  if (sync.isLoading) return <Card>Loading clients from projects…</Card>;
   return <ModuleCrud module={moduleById("clients")!} rowActions={(row) => <OpenClient row={row} />} />;
 }
 

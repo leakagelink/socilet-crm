@@ -24,6 +24,8 @@ const STATUS_TONE: Record<string, string> = {
   lost: "bad",
   void: "bad",
   failed: "bad",
+  ringing: "soon",
+  receiving: "info",
   overdue: "bad",
   skipped: "warn",
   soon: "soon",
@@ -52,6 +54,7 @@ export const DATE_FIELDS = new Set([
   "paid_at",
   "last_paid_date",
   "date",
+  "scheduled_at",
 ]);
 
 export function statusTone(value: unknown) {

@@ -1,5 +1,6 @@
 import { listRecords, type RecordRow } from "@/lib/db";
 import { waLink } from "@/lib/pipeline";
+import { isLend, remainingOnDeal } from "@/lib/lendBorrow";
 
 function str(v: unknown) {
   return String(v ?? "").trim();
@@ -29,13 +30,14 @@ export type FollowItem = {
 
 export async function loadFollowUps(): Promise<FollowItem[]> {
   const today = new Date().toISOString().slice(0, 10);
-  const [projects, invoices, tasks, reminders, recurring, clients] = await Promise.all([
+  const [projects, invoices, tasks, reminders, recurring, clients, lendBorrow] = await Promise.all([
     listRecords("projects"),
     listRecords("invoices"),
     listRecords("tasks"),
     listRecords("reminders"),
     listRecords("recurring_earnings"),
     listRecords("clients"),
+    listRecords("lend_borrow"),
   ]);
 
   function clientOf(row: RecordRow) {
@@ -146,6 +148,32 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
       email: emailOf(row),
       wa: waLink(phone, `Namaste, ${name} billing is due (${next}).`),
       tone: next < today ? "overdue" : "due",
+    });
+  }
+
+  for (const row of lendBorrow) {
+    const remain = remainingOnDeal(row.data);
+    const status = str(row.data.status).toLowerCase();
+    if (remain <= 0 || status === "settled") continue;
+    const due = day(row.data.due_date);
+    const overdue = Boolean(due && due < today);
+    const party = str(row.data.party) || "Person";
+    const phone = str(row.data.phone);
+    const lend = isLend(row.data);
+    const payout = str(row.data.payout).replaceAll("_", " ") || "open";
+    const text = lend
+      ? `Namaste ${party}, pending return is ₹${Math.round(remain)}.`
+      : `Reminder: repay ${party} ₹${Math.round(remain)}.`;
+    items.push({
+      id: `lend:${row.id}`,
+      kind: overdue ? (lend ? "Lend overdue" : "Borrow overdue") : lend ? "Lend open" : "Borrow open",
+      title: party,
+      detail: `${lend ? "To collect" : "To repay"} ₹${Math.round(remain)} · ${payout}${due ? ` · ${due}` : ""}`,
+      href: "/lend-borrow",
+      phone,
+      email: "",
+      wa: waLink(phone, text),
+      tone: overdue ? "overdue" : "due",
     });
   }
 

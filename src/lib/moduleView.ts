@@ -11,6 +11,7 @@ const TITLE_KEYS = [
   "name",
   "title",
   "product",
+  "party",
   "client",
   "quote_no",
   "invoice_no",
@@ -34,7 +35,7 @@ export function rowTitle(row: RecordRow, module: ModuleDef) {
 }
 
 export function rowSubtitle(row: RecordRow) {
-  const bits = [row.data.client, row.data.company, row.data.category, row.data.project_name, row.data.platform, row.data.type, row.data.assignee]
+  const bits = [row.data.client, row.data.party, row.data.company, row.data.category, row.data.project_name, row.data.platform, row.data.type, row.data.assignee]
     .map((v) => String(v ?? "").trim())
     .filter(Boolean);
   return [...new Set(bits)].slice(0, 2).join(" · ");
@@ -47,6 +48,7 @@ export function rowMoney(row: RecordRow, moduleId: string) {
     return { label: "Current", value: current || principal };
   }
   if (moduleId === "projects") return { label: "Total", value: money(row.data.total_amount) };
+  if (moduleId === "lend_borrow") return { label: "Remaining", value: money(row.data.remaining_amount) || money(row.data.expected_return) || money(row.data.amount) };
   if (moduleId === "digital_products") return { label: "Sale", value: money(row.data.resell_price) || money(row.data.amount) };
   if (moduleId === "invoices" || moduleId === "quotations") return { label: "Amount", value: money(row.data.amount) };
   for (const key of ["amount", "total_amount", "price", "gst_amount"]) {
@@ -60,7 +62,11 @@ export function chipFields(module: ModuleDef) {
   return module.fields.filter((f) => {
     if (skip.has(f.name)) return false;
     if (f.name === "status") return false;
-    return f.kind === "date" || DATE_FIELDS.has(f.name) || ["client", "category", "payment_method", "priority", "type", "platform", "project_name"].includes(f.name);
+    return (
+      f.kind === "date" ||
+      DATE_FIELDS.has(f.name) ||
+      ["client", "category", "payment_method", "priority", "type", "platform", "project_name", "email", "phone", "company", "direction", "payout"].includes(f.name)
+    );
   }).slice(0, 5);
 }
 
@@ -117,6 +123,18 @@ export function insightTiles(module: ModuleDef, rows: RecordRow[]): InsightTile[
       { label: "Running", hint: "Live jobs", value: running, tone: TONES[2] },
     ];
   }
+  if (id === "lend_borrow") {
+    const lent = rows.filter((r) => ["lend", "lent"].includes(String(r.data.direction || "").toLowerCase()));
+    const borrowed = rows.filter((r) => String(r.data.direction || "").toLowerCase() === "borrow");
+    const collect = lent.reduce((a, r) => a + money(r.data.remaining_amount), 0);
+    const repay = borrowed.reduce((a, r) => a + money(r.data.remaining_amount), 0);
+    return [
+      { label: "Lent out", hint: "Principal given", value: lent.reduce((a, r) => a + money(r.data.amount), 0), tone: TONES[0] },
+      { label: "To collect", hint: "Incl. ROI", value: collect, tone: TONES[1] },
+      { label: "Borrowed", hint: "Principal taken", value: borrowed.reduce((a, r) => a + money(r.data.amount), 0), tone: TONES[2] },
+      { label: "To repay", hint: "Incl. ROI", value: repay, tone: TONES[3] },
+    ];
+  }
   if (id === "digital_products") {
     const sales = rows.reduce((a, r) => a + (money(r.data.resell_price) || money(r.data.amount)), 0);
     const profit = rows.reduce((a, r) => a + (money(r.data.profit) || Math.max(0, money(r.data.resell_price) - money(r.data.amount))), 0);
@@ -149,7 +167,7 @@ export function insightTiles(module: ModuleDef, rows: RecordRow[]): InsightTile[
 
 export function moduleKicker(id: string) {
   if (["projects", "tasks", "clients", "follow_ups", "quotations", "project_addons", "workspaces", "meetings"].includes(id)) return "Work";
-  if (["spends", "investments", "other_income", "digital_products", "recurring_earnings", "cosmofeed", "invoices", "gst", "balance_tracker"].includes(id)) {
+  if (["spends", "investments", "lend_borrow", "other_income", "digital_products", "recurring_earnings", "cosmofeed", "invoices", "gst", "balance_tracker"].includes(id)) {
     return "Finance";
   }
   return "Ops";

@@ -17,10 +17,13 @@ import { ClientsPage, ClientDetailPage } from "@/pages/ClientsPage";
 import { ActivityPage } from "@/pages/ActivityPage";
 import { FollowUpsPage } from "@/pages/FollowUpsPage";
 import { GstPage } from "@/pages/GstPage";
+import { CalculatorPage } from "@/pages/CalculatorPage";
 import { DocumentPrintPage, InvoicesPage, QuotationsPage } from "@/pages/DocumentsPages";
 import { InvoiceComposer, QuoteComposer } from "@/pages/DocumentComposer";
 import { PaymentMethodsPage } from "@/pages/PaymentMethodsPage";
 import { ServiceCredentialsPage } from "@/pages/ServiceCredentialsPage";
+import { MeetingsPage } from "@/pages/MeetingsPage";
+import { MeetingJoinPage, MeetingRoomPage } from "@/pages/MeetingRoomPage";
 
 function Crud({ id }: { id: string }) {
   const m = MODULES.find((x) => x.id === id)!;
@@ -35,12 +38,13 @@ function LoginGate() {
   return <LoginPage />;
 }
 
-const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials", "cosmofeed", "payment_methods", "activity"]);
+const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials", "cosmofeed", "payment_methods", "activity", "meetings", "meeting_providers"]);
 
 export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginGate />} />
+      <Route path="/join/:token" element={<MeetingJoinPage />} />
       <Route path="/denied" element={<DeniedPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
@@ -48,6 +52,7 @@ export function App() {
           <Route path="/follow-ups" element={<FollowUpsPage />} />
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/gst" element={<GstPage />} />
+          <Route path="/calculator" element={<CalculatorPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:id" element={<ClientDetailPage />} />
           <Route path="/quotations" element={<QuotationsPage />} />
@@ -68,6 +73,8 @@ export function App() {
           <Route path="/emails" element={<EmailsPage />} />
           <Route path="/email-setup" element={<EmailSetupPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/meetings" element={<MeetingsPage />} />
+          <Route path="/meetings/:id/room" element={<MeetingRoomPage />} />
           <Route path="/service-credentials" element={<ServiceCredentialsPage />} />
           {MODULES.filter((m) => !SPECIAL.has(m.id)).map((m) => (
             <Route key={m.id} path={m.path} element={<Crud id={m.id} />} />
