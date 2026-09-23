@@ -14,6 +14,7 @@ export const ROLE_HOME: Record<RoleName, string> = {
 
 const DESIGNER = [
   "/",
+  "/agent",
   "/follow-ups",
   "/clients",
   "/projects",
@@ -29,6 +30,7 @@ const DESIGNER = [
 
 const ACCOUNTANT = [
   "/",
+  "/agent",
   "/follow-ups",
   "/clients",
   "/quotations",

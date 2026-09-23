@@ -15,12 +15,22 @@ function firmLogoUrl(url) {
   return u;
 }
 
+function emptyAi() {
+  return {
+    memory: { user: [], business: [], work: [] },
+    conversations: {},
+    pending: {},
+    audit: [],
+  };
+}
+
 function emptyState() {
   return {
     records: [],
     settings: {
       finance: { id: "finance", base_balance: 0, updated_at: new Date().toISOString() },
       firm: emptyFirm(),
+      ai: emptyAi(),
     },
   };
 }
@@ -38,6 +48,7 @@ function loadState() {
     settings: {
       finance: best.raw.settings?.finance || emptyState().settings.finance,
       firm: { ...emptyFirm(), ...(best.raw.settings?.firm || {}) },
+      ai: best.raw.settings?.ai && typeof best.raw.settings.ai === "object" ? best.raw.settings.ai : emptyAi(),
     },
     savedAt: String(best.raw.savedAt || ""),
   };

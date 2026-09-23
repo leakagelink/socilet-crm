@@ -55,7 +55,7 @@ export async function apiFetch(path: string, init?: RequestInit) {
   const res = await fetch(apiUrl(path), { ...init, headers });
   if (
     res.status === 401 &&
-    (path.startsWith("/api/crm") || path.startsWith("/api/email") || path === "/api/auth/me")
+    (path.startsWith("/api/crm") || path.startsWith("/api/email") || path.startsWith("/api/ai") || path === "/api/auth/me")
   ) {
     setToken(null);
     try {

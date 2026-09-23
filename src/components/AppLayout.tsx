@@ -53,9 +53,11 @@ import { countUnseenMail } from "@/lib/unreadMail";
 import { cn } from "@/lib/utils";
 import { canAccess, type RoleName } from "@/lib/roles";
 import { BrandLogo } from "@/components/BrandLogo";
+import { AgentDock } from "@/components/AgentDock";
 
 const ICONS: Record<string, LucideIcon> = {
   "/": LayoutDashboard,
+  "/agent": Sparkles,
   "/projects": FolderKanban,
   "/tasks": CheckSquare,
   "/quotations": FileText,
@@ -93,7 +95,7 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 const groups = [
-  { name: "Work", paths: ["/", "/follow-ups", "/clients", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
+  { name: "Work", paths: ["/", "/agent", "/follow-ups", "/clients", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
   {
     name: "Finance",
     paths: [
@@ -123,6 +125,7 @@ const groups = [
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
+  "/agent": "Agent",
   "/account": "Account",
   "/email-setup": "Email setup",
   "/follow-ups": "Follow-ups",
@@ -468,6 +471,7 @@ export function AppLayout() {
         >
           <Outlet />
         </main>
+        <AgentDock />
         <BottomBar onMore={() => setOpen(true)} />
       </div>
     </div>

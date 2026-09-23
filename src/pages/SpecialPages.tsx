@@ -8,6 +8,7 @@ import { useState, type ReactNode } from "react";
 import { BarChart, DistributionDonut, DonutChart, MonthlyBarChart, MonthlyLineChart } from "@/components/charts";
 import { AvailableBalanceEditor } from "@/components/AvailableBalanceEditor";
 import { PageHeader } from "@/components/PageHeader";
+import { ExecutiveBriefCard } from "@/components/ExecutiveBriefCard";
 import { listRecords } from "@/lib/db";
 import { Link } from "react-router-dom";
 import {
@@ -76,6 +77,8 @@ export function DashboardPage() {
       />
       {f.isLoading ? <Card>Loading balances…</Card> : null}
       {f.isError ? <Card className="text-red-300">Could not load finance.</Card> : null}
+
+      <ExecutiveBriefCard />
 
       {d ? (
         <div className="stagger grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">

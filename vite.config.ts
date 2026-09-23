@@ -42,6 +42,13 @@ function sociletApi(env: Record<string, string>) {
       );
       return;
     }
+    if (route.startsWith("/api/ai")) {
+      const spec = pathToFileURL(path.join(import.meta.dirname, "server", "ai-api.mjs")).href;
+      void import(spec).then((m: { handleAiRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
+        m.handleAiRequest(req, res, { ...process.env, ...env } as Record<string, string>),
+      );
+      return;
+    }
     if (route.startsWith("/api/crm")) {
       const spec = pathToFileURL(path.join(import.meta.dirname, "server", "crm-api.mjs")).href;
       void import(spec).then((m: { handleCrmRequest: (req: unknown, res: unknown, env: Record<string, string>) => Promise<boolean> }) =>
