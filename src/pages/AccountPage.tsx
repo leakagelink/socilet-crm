@@ -19,6 +19,7 @@ import { Input, Label } from "@/components/ui/input";
 import { PageHeader } from "@/components/PageHeader";
 import { listAllRecords, mergeRecords } from "@/lib/db";
 import { downloadText } from "@/lib/tableTools";
+import { BRAND_LOGO, brandLogoUrl } from "@/lib/brand";
 import {
   enrollFingerprint,
   fingerprintAvailable,
@@ -496,7 +497,7 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [logo, setLogo] = useState("/socilet-logo.svg");
+  const [logo, setLogo] = useState(BRAND_LOGO);
   useEffect(() => {
     void import("@/lib/firm").then(({ loadFirm }) =>
       loadFirm().then((f) => {
@@ -506,7 +507,7 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
         setAddress(f.address);
         setPhone(f.phone);
         setEmail(f.email);
-        setLogo(f.logo_url || "/socilet-logo.svg");
+        setLogo(brandLogoUrl(f.logo_url));
       }),
     );
   }, []);
@@ -538,7 +539,8 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
       </div>
       <div className="grid gap-1">
         <Label>Logo URL</Label>
-        <Input value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="/socilet-logo.svg" />
+        <Input value={logo} onChange={(e) => setLogo(e.target.value)} placeholder={BRAND_LOGO} />
+        <img src={brandLogoUrl(logo)} alt="Socilet" className="mt-1 h-16 w-auto max-w-[12rem] rounded-xl bg-black object-contain ring-1 ring-gold/25" />
       </div>
       <div className="grid gap-1">
         <Label>Address</Label>
@@ -549,7 +551,7 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
         onClick={async () => {
           try {
             const { saveFirm } = await import("@/lib/firm");
-            await saveFirm({ legal_name: legal, gstin, upi_id: upi, address, phone, email, logo_url: logo || "/socilet-logo.svg" });
+            await saveFirm({ legal_name: legal, gstin, upi_id: upi, address, phone, email, logo_url: logo || BRAND_LOGO });
             onMsg("Firm details saved.");
           } catch (e) {
             onErr(e instanceof Error ? e.message : "Could not save firm");

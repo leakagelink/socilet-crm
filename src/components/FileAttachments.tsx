@@ -6,14 +6,22 @@ import { canAddAttachment, fileToAttachment, type Attachment } from "@/lib/attac
 export function FileAttachments({
   files,
   onChange,
+  label = "Proofs / files",
+  hint = "Contract, screenshot, payment proof — max 4 files, 700KB each. Stored with the record.",
+  accept = "image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.zip",
+  maxBytes,
 }: {
   files: Attachment[];
   onChange: (next: Attachment[]) => void;
+  label?: string;
+  hint?: string;
+  accept?: string;
+  maxBytes?: number;
 }) {
   return (
     <div className="grid gap-2 rounded-xl border border-gold/25 bg-gold/5 p-3">
-      <Label>Proofs / files</Label>
-      <p className="text-xs text-paper/50">Contract, screenshot, payment proof — max 4 files, 700KB each. Stored with the record.</p>
+      <Label>{label}</Label>
+      <p className="text-xs text-paper/50">{hint}</p>
       {files.map((f) => (
         <div key={f.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-gold/20 bg-panel px-3 py-2 text-sm">
           <Paperclip className="h-4 w-4 shrink-0 text-gold" />
@@ -28,14 +36,14 @@ export function FileAttachments({
       {canAddAttachment(files) ? (
         <input
           type="file"
-          accept="image/*,.pdf,.doc,.docx"
+          accept={accept}
           className="text-sm"
           onChange={async (e) => {
             const file = e.target.files?.[0];
             e.target.value = "";
             if (!file) return;
             try {
-              onChange([...files, await fileToAttachment(file)]);
+              onChange([...files, await fileToAttachment(file, maxBytes)]);
             } catch (err) {
               window.alert(err instanceof Error ? err.message : "Upload failed");
             }

@@ -52,6 +52,7 @@ import { restoreMailboxesToServer } from "@/lib/mailboxStore";
 import { countUnseenMail } from "@/lib/unreadMail";
 import { cn } from "@/lib/utils";
 import { canAccess, type RoleName } from "@/lib/roles";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const ICONS: Record<string, LucideIcon> = {
   "/": LayoutDashboard,
@@ -365,12 +366,8 @@ export function AppLayout() {
   return (
     <div className="min-h-full min-w-0 lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="glass hidden border-r border-gold/15 p-4 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
-        <div className="mb-7 flex items-center gap-3 px-1">
-          <img src="/socilet-logo.svg" alt="" className="brand-mark h-11 w-11 rounded-2xl ring-1 ring-gold/40" />
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.24em] text-gold/80">Socilet</div>
-            <div className="font-display text-xl leading-none">CRM</div>
-          </div>
+        <div className="mb-7 px-1">
+          <BrandLogo className="h-14 w-auto max-w-full rounded-xl ring-1 ring-gold/25" />
         </div>
         {dockOpen ? (
           <div className="mb-4 rounded-2xl border border-gold/20 bg-gold/5 p-2">
@@ -413,10 +410,7 @@ export function AppLayout() {
                 </div>
               </div>
             </OverlayPortal>
-            <span className="lg:hidden flex items-center gap-2 font-display text-base">
-              <img src="/socilet-logo.svg" alt="" className="h-8 w-8 rounded-xl ring-1 ring-gold/35" />
-              Socilet
-            </span>
+            <BrandLogo className="lg:hidden h-9 w-auto max-w-[9.5rem] rounded-lg ring-1 ring-gold/25" />
             <ClockLabel />
           </div>
           <div className="flex shrink-0 items-center gap-2 text-sm sm:gap-3">

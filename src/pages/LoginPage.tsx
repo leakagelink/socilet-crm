@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { ROLE_HOME, isStaffRole } from "@/lib/roles";
+import { BrandLogo } from "@/components/BrandLogo";
+import { BRAND_TAGLINE } from "@/lib/brand";
 
 const LOCK_KEY = "socilet.loginLock";
 
@@ -91,22 +93,21 @@ export function LoginPage() {
         <div className="orb pointer-events-none absolute bottom-10 right-10 h-80 w-80 rounded-full bg-mint/20 blur-3xl" />
         <div className="grid-fade pointer-events-none absolute inset-0" />
         <div className="relative max-w-md">
-          <img src="/socilet-logo.svg" alt="Socilet" className="brand-mark mb-6 h-16 w-16 rounded-2xl ring-1 ring-gold/40" />
-          <div className="text-[11px] uppercase tracking-[0.32em] text-gold">Socilet</div>
-          <h1 className="font-display mt-3 text-5xl leading-tight text-paper">The ledger, dressed for daylight.</h1>
-          <p className="mt-4 text-sm text-paper/55">INR command deck for projects, mail, and cash. Admin, designer, and accountant logins.</p>
+          <BrandLogo className="mb-6 h-28 w-auto max-w-[18rem] rounded-2xl ring-1 ring-gold/25" />
+          <h1 className="font-display mt-2 text-5xl leading-tight text-paper">{BRAND_TAGLINE}</h1>
+          <p className="mt-4 text-sm text-paper/55">Projects, mail, invoices, and cash in one Socilet CRM. Admin, designer, and accountant logins.</p>
         </div>
       </div>
       <div className="relative flex min-h-full items-center justify-center p-4 pt-[calc(var(--sat)+1rem)] pb-[calc(var(--sab)+1rem)]">
         <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-gold/15 blur-3xl lg:hidden" />
         <Card className="page-enter shine relative w-full max-w-md border-gold/35">
-          <img src="/socilet-logo.svg" alt="" className="brand-mark mb-4 h-12 w-12 rounded-2xl ring-1 ring-gold/40 lg:hidden" />
-          <div className="mb-1 text-[11px] uppercase tracking-[0.28em] text-gold">Socilet</div>
+          <BrandLogo className="mb-4 h-16 w-auto max-w-[12rem] rounded-xl ring-1 ring-gold/25 lg:hidden" />
+          <div className="mb-1 text-[11px] uppercase tracking-[0.28em] text-gold">{BRAND_TAGLINE}</div>
           <h1 className="font-display mb-2 text-3xl">{ticket ? "Two-factor code" : "Welcome back"}</h1>
           <p className="mb-6 text-sm text-paper/50">
             {ticket
               ? "Authenticator app ka 6-digit code enter karo."
-              : "Sign in to the command deck."}
+              : "Sign in to Socilet CRM."}
           </p>
           {locked ? (
             <p className="mb-4 rounded-xl border border-gold/30 bg-gold/10 px-3 py-2 text-sm text-gold">
@@ -204,6 +205,7 @@ export function DeniedPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="max-w-md">
+        <BrandLogo className="mb-4 h-16 w-auto max-w-[12rem] rounded-xl" />
         <h1 className="font-display text-2xl">Access denied</h1>
         <p className="mt-2 text-sm text-paper/70">This page is not in your role. Ask an admin if you need access.</p>
         <Button

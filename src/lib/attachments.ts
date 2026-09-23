@@ -24,8 +24,11 @@ export function parseAttachments(raw: unknown): Attachment[] {
     .filter((a): a is Attachment => Boolean(a));
 }
 
-export async function fileToAttachment(file: File): Promise<Attachment> {
-  if (file.size > MAX_BYTES) throw new Error(`${file.name} is over 700KB`);
+export async function fileToAttachment(file: File, maxBytes = MAX_BYTES): Promise<Attachment> {
+  if (file.size > maxBytes) {
+    const kb = Math.round(maxBytes / 1024);
+    throw new Error(`${file.name} is over ${kb}KB`);
+  }
   const data = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
