@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { json } from "./http-util.mjs";
+import { json, readBody } from "./http-util.mjs";
 import { corsAndOptions, escapeHtml, guardOrigin, readJson } from "./security.mjs";
 import { inboundOk, requireApiUser } from "./auth-api.mjs";
 import { persistFiles, writeJsonCopies } from "./persist.mjs";
@@ -115,6 +115,30 @@ function getMailbox(env, id) {
   const rows = withEnvMailbox(env, loadStore());
   if (id) return rows.find((r) => r.id === id) || null;
   return rows[0] || null;
+}
+
+function mailAttachments(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const name = String(item.filename || item.name || "")
+      .trim()
+      .replace(/[^\w.\- ()[\]]+/g, "_")
+      .slice(0, 180);
+    let content = String(item.content || item.data || "");
+    const marker = "base64,";
+    const at = content.indexOf(marker);
+    if (content.startsWith("data:") && at >= 0) content = content.slice(at + marker.length);
+    content = content.replace(/\s/g, "");
+    if (!name || !content || content.length > 6_000_000) continue;
+    const row = { filename: name, content };
+    const mime = String(item.mime || item.content_type || "").trim();
+    if (mime) row.content_type = mime;
+    out.push(row);
+    if (out.length >= 5) break;
+  }
+  return out;
 }
 
 export async function handleEmailRequest(req, res, env) {
@@ -263,8 +287,18 @@ export async function handleEmailRequest(req, res, env) {
     }
 
     if (req.method === "POST" && path === "/api/email/send") {
-      const input = await readJson(req, res);
-      if (!input) return true;
+      const raw = await readBody(req, 8 * 1024 * 1024);
+      if (raw == null) {
+        json(res, 413, { error: "Mail too large (max 8MB with files)" });
+        return true;
+      }
+      let input;
+      try {
+        input = raw.trim() ? JSON.parse(raw) : {};
+      } catch {
+        json(res, 400, { error: "Invalid JSON" });
+        return true;
+      }
       const active = getMailbox(env, input.mailboxId || qs.get("mailbox")) || box;
       const to = String(input.to || "").trim();
       const subject = String(input.subject || "").trim();
@@ -281,6 +315,8 @@ export async function handleEmailRequest(req, res, env) {
         text,
         html,
       };
+      const files = mailAttachments(input.attachments);
+      if (files.length) payload.attachments = files;
       if (input.replyTo) payload.reply_to = String(input.replyTo);
       const data = await resendWithKey(active.apiKey, "POST", "/emails", payload);
       json(res, 200, data);

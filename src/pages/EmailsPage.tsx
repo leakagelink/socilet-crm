@@ -10,6 +10,8 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { insertRecord } from "@/lib/db";
 import { emailApi, mailboxQuery, type Mailbox } from "@/lib/emailClient";
 import { markMailSeen, mailIsUnseen } from "@/lib/unreadMail";
+import { FileAttachments } from "@/components/FileAttachments";
+import type { Attachment } from "@/lib/attachments";
 import { cn } from "@/lib/utils";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -63,6 +65,7 @@ export function EmailsPage() {
   const [mailboxId, setMailboxId] = useState("");
   const [composing, setComposing] = useState(false);
   const [pane, setPane] = useState<"list" | "read">("list");
+  const [files, setFiles] = useState<Attachment[]>([]);
 
   const boxes = useQuery({
     queryKey: ["email-mailboxes"],
@@ -110,6 +113,7 @@ export function EmailsPage() {
     setOpenId(null);
     setComposing(true);
     setPane("read");
+    setFiles([]);
   }, [params, form]);
 
   const send = useMutation({
@@ -117,7 +121,13 @@ export function EmailsPage() {
       const data = await api<{ id?: string }>("/api/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mailboxId: activeId, to: v.to, subject: v.subject, text: v.body }),
+        body: JSON.stringify({
+          mailboxId: activeId,
+          to: v.to,
+          subject: v.subject,
+          text: v.body,
+          attachments: files.map((f) => ({ name: f.name, mime: f.mime, data: f.data })),
+        }),
       });
       await insertRecord("emails", {
         to_addr: v.to,
@@ -127,11 +137,13 @@ export function EmailsPage() {
         sent_at: new Date().toISOString(),
         resend_id: data.id ?? "",
         mailbox: active?.label ?? "",
+        attachments: files.map((f) => f.name).join(", "),
       });
       return data;
     },
     onSuccess: () => {
       form.reset();
+      setFiles([]);
       setComposing(false);
       void qc.invalidateQueries({ queryKey: ["email-sent", activeId] });
     },
@@ -147,6 +159,7 @@ export function EmailsPage() {
 
   function startCompose() {
     form.reset({ to: "", subject: "", body: "" });
+    setFiles([]);
     setOpenId(null);
     setComposing(true);
     setPane("read");
@@ -317,6 +330,13 @@ export function EmailsPage() {
                 <Label htmlFor="body">Message</Label>
                 <Textarea id="body" className="min-h-40" {...form.register("body")} />
               </div>
+              <FileAttachments
+                files={files}
+                onChange={setFiles}
+                label="Attachments"
+                hint="PDF, images, Word, Excel, zip — max 4 files, 4MB each. These go with the email."
+                maxBytes={4_000_000}
+              />
               {send.isError ? <p className="text-sm text-red-400">{send.error.message}</p> : null}
               {send.isSuccess ? <p className="text-sm text-mint">Sent</p> : null}
               <Button type="submit" disabled={send.isPending || !activeId}>
