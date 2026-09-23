@@ -12,7 +12,7 @@ export function BrandLogo({
     <img
       src={BRAND_LOGO}
       alt={alt}
-      className={cn("brand-mark bg-black object-contain object-center", className)}
+      className={cn("brand-mark object-contain object-center", className)}
     />
   );
 }

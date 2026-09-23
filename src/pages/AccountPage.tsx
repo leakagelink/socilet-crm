@@ -540,7 +540,7 @@ function FirmCard({ onMsg, onErr }: { onMsg: (s: string) => void; onErr: (s: str
       <div className="grid gap-1">
         <Label>Logo URL</Label>
         <Input value={logo} onChange={(e) => setLogo(e.target.value)} placeholder={BRAND_LOGO} />
-        <img src={brandLogoUrl(logo)} alt="Socilet" className="mt-1 h-16 w-auto max-w-[12rem] rounded-xl bg-black object-contain ring-1 ring-gold/25" />
+        <img src={brandLogoUrl(logo)} alt="Socilet" className="mt-1 h-16 w-auto max-w-[12rem] object-contain" />
       </div>
       <div className="grid gap-1">
         <Label>Address</Label>

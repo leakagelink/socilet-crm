@@ -196,6 +196,7 @@ export function emptyAi() {
   return {
     memory: { user: [], business: [], work: [] },
     conversations: {},
+    sessions: {},
     pending: {},
     audit: [],
   };
@@ -210,6 +211,7 @@ export function ensureAi(state) {
     if (!Array.isArray(ai.memory[k])) ai.memory[k] = [];
   }
   if (!ai.conversations || typeof ai.conversations !== "object") ai.conversations = {};
+  if (!ai.sessions || typeof ai.sessions !== "object") ai.sessions = {};
   if (!ai.pending || typeof ai.pending !== "object") ai.pending = {};
   if (!Array.isArray(ai.audit)) ai.audit = [];
   return ai;

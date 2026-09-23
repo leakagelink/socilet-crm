@@ -93,7 +93,7 @@ export function LoginPage() {
         <div className="orb pointer-events-none absolute bottom-10 right-10 h-80 w-80 rounded-full bg-mint/20 blur-3xl" />
         <div className="grid-fade pointer-events-none absolute inset-0" />
         <div className="relative max-w-md">
-          <BrandLogo className="mb-6 h-28 w-auto max-w-[18rem] rounded-2xl ring-1 ring-gold/25" />
+          <BrandLogo className="mb-6 h-28 w-auto max-w-[18rem]" />
           <h1 className="font-display mt-2 text-5xl leading-tight text-paper">{BRAND_TAGLINE}</h1>
           <p className="mt-4 text-sm text-paper/55">Projects, mail, invoices, and cash in one Socilet CRM. Admin, designer, and accountant logins.</p>
         </div>
@@ -101,7 +101,7 @@ export function LoginPage() {
       <div className="relative flex min-h-full items-center justify-center p-4 pt-[calc(var(--sat)+1rem)] pb-[calc(var(--sab)+1rem)]">
         <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-gold/15 blur-3xl lg:hidden" />
         <Card className="page-enter shine relative w-full max-w-md border-gold/35">
-          <BrandLogo className="mb-4 h-16 w-auto max-w-[12rem] rounded-xl ring-1 ring-gold/25 lg:hidden" />
+          <BrandLogo className="mb-4 h-16 w-auto max-w-[12rem] lg:hidden" />
           <div className="mb-1 text-[11px] uppercase tracking-[0.28em] text-gold">{BRAND_TAGLINE}</div>
           <h1 className="font-display mb-2 text-3xl">{ticket ? "Two-factor code" : "Welcome back"}</h1>
           <p className="mb-6 text-sm text-paper/50">

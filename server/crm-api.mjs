@@ -19,6 +19,7 @@ function emptyAi() {
   return {
     memory: { user: [], business: [], work: [] },
     conversations: {},
+    sessions: {},
     pending: {},
     audit: [],
   };

@@ -95,7 +95,8 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 const groups = [
-  { name: "Work", paths: ["/", "/agent", "/follow-ups", "/clients", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
+  { name: "AI", paths: ["/agent"] },
+  { name: "Work", paths: ["/", "/follow-ups", "/clients", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
   {
     name: "Finance",
     paths: [
@@ -125,7 +126,7 @@ const groups = [
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
-  "/agent": "Agent",
+  "/agent": "AI Agent",
   "/account": "Account",
   "/email-setup": "Email setup",
   "/follow-ups": "Follow-ups",
@@ -183,13 +184,14 @@ function NavList({ onGo }: { onGo?: () => void }) {
 }
 
 const BOTTOM_TABS: Record<RoleName, string[]> = {
-  admin: ["/", "/clients", "/projects", "/tasks"],
-  designer: ["/", "/clients", "/projects", "/tasks"],
-  accountant: ["/", "/clients", "/invoices", "/follow-ups"],
+  admin: ["/", "/agent", "/clients", "/projects"],
+  designer: ["/", "/agent", "/clients", "/tasks"],
+  accountant: ["/", "/agent", "/clients", "/invoices"],
 };
 
 const BOTTOM_LABELS: Record<string, string> = {
   "/": "Home",
+  "/agent": "Agent",
   "/clients": "Clients",
   "/projects": "Projects",
   "/tasks": "Tasks",
@@ -370,7 +372,7 @@ export function AppLayout() {
     <div className="min-h-full min-w-0 lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="glass hidden border-r border-gold/15 p-4 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <div className="mb-7 px-1">
-          <BrandLogo className="h-14 w-auto max-w-full rounded-xl ring-1 ring-gold/25" />
+          <BrandLogo className="h-14 w-auto max-w-full" />
         </div>
         {dockOpen ? (
           <div className="mb-4 rounded-2xl border border-gold/20 bg-gold/5 p-2">
@@ -401,7 +403,7 @@ export function AppLayout() {
           <NavList />
         </div>
       </aside>
-      <div className="flex min-h-full min-w-0 flex-col">
+      <div className={cn("flex min-h-full min-w-0 flex-col", loc.pathname === "/agent" && "h-dvh max-h-dvh overflow-hidden lg:h-screen lg:max-h-screen")}>
         <header className="sticky top-0 z-30 flex min-h-12 min-w-0 items-center justify-between gap-2 border-b border-gold/15 bg-panel/90 pb-2.5 pl-[max(0.75rem,var(--sal))] pr-[max(0.75rem,var(--sar))] pt-[calc(var(--sat)+0.65rem)] backdrop-blur-md sm:gap-3 sm:pb-3 sm:pl-4 sm:pr-4 sm:pt-[calc(var(--sat)+0.75rem)]">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <OverlayPortal open={open} onClose={() => setOpen(false)}>
@@ -413,7 +415,7 @@ export function AppLayout() {
                 </div>
               </div>
             </OverlayPortal>
-            <BrandLogo className="lg:hidden h-9 w-auto max-w-[9.5rem] rounded-lg ring-1 ring-gold/25" />
+            <BrandLogo className="lg:hidden h-9 w-auto max-w-[9.5rem]" />
             <ClockLabel />
           </div>
           <div className="flex shrink-0 items-center gap-2 text-sm sm:gap-3">
@@ -463,7 +465,9 @@ export function AppLayout() {
         <main
           key={loc.pathname}
           className={cn(
-            "page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[calc(4.5rem+var(--sab))] sm:p-4 md:p-8 lg:pb-[max(1.25rem,var(--sab))] lg:pl-8",
+            loc.pathname === "/agent"
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2 pb-[calc(4.35rem+var(--sab))] sm:p-3 lg:p-4 lg:pb-[max(1rem,var(--sab))]"
+              : "page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[calc(4.5rem+var(--sab))] sm:p-4 md:p-8 lg:pb-[max(1.25rem,var(--sab))] lg:pl-8",
             dockOpen
               ? "pl-[max(4rem,calc(3.5rem+var(--sal)))] sm:pl-16 md:pl-16 lg:pl-8"
               : "pl-[max(0.85rem,calc(0.5rem+var(--sal)))] sm:pl-4 md:pl-8 lg:pl-8",

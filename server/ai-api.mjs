@@ -1,9 +1,18 @@
 import { json } from "./http-util.mjs";
 import { corsAndOptions, guardOrigin, readJson, rateLimit, clientIp } from "./security.mjs";
 import { requireApiUser } from "./auth-api.mjs";
-import { loadCrmState, saveCrmState } from "./crm-api.mjs";
+import { loadCrmState } from "./crm-api.mjs";
 import { buildDailySnapshot, clipJson, visibleRecords } from "./ai-context.mjs";
 import { TOOLS, confirmPending, ensureAi, executeTool } from "./ai-tools.mjs";
+import {
+  appendTurn,
+  createSession,
+  deleteSession,
+  getSession,
+  listSessions,
+  renameSession,
+  sessionHistory,
+} from "./ai-sessions.mjs";
 
 const SYSTEM = `You are Socilet OS — the founder operating layer for this CRM, not a chatbot.
 You act as CEO/CTO/CFO/PM/ops/sales/growth/EA for the founder of Socilet (technology entrepreneur).
@@ -82,10 +91,13 @@ export async function handleAiRequest(req, res, env = process.env) {
   const user = await requireApiUser(req, res, env);
   if (!user) return true;
 
-  const rl = rateLimit(`ai:${user.id}:${clientIp(req)}`, 40, 60 * 60 * 1000);
-  if (!rl.ok) {
-    json(res, 429, { error: "AI rate limit. Try later.", retryAfter: rl.retryAfter });
-    return true;
+  const isChat = req.method === "POST" && path === "/api/ai/chat";
+  if (isChat) {
+    const rl = rateLimit(`ai:${user.id}:${clientIp(req)}`, 40, 60 * 60 * 1000);
+    if (!rl.ok) {
+      json(res, 429, { error: "AI rate limit. Try later.", retryAfter: rl.retryAfter });
+      return true;
+    }
   }
 
   try {
@@ -124,6 +136,43 @@ export async function handleAiRequest(req, res, env = process.env) {
       return true;
     }
 
+    if (req.method === "GET" && path === "/api/ai/sessions") {
+      json(res, 200, { data: listSessions(user.id) });
+      return true;
+    }
+
+    if (req.method === "POST" && path === "/api/ai/sessions") {
+      json(res, 200, { data: createSession(user.id) });
+      return true;
+    }
+
+    const one = path.match(/^\/api\/ai\/sessions\/([^/]+)$/);
+    if (one && req.method === "GET") {
+      const row = getSession(user.id, one[1]);
+      if (!row) {
+        json(res, 404, { error: "Session not found" });
+        return true;
+      }
+      json(res, 200, { data: row });
+      return true;
+    }
+    if (one && req.method === "PATCH") {
+      const input = await readJson(req, res);
+      if (!input) return true;
+      const row = renameSession(user.id, one[1], String(input.title || ""));
+      if (!row) {
+        json(res, 404, { error: "Session not found" });
+        return true;
+      }
+      json(res, 200, { data: row });
+      return true;
+    }
+    if (one && req.method === "DELETE") {
+      const ok = deleteSession(user.id, one[1]);
+      json(res, ok ? 200 : 404, ok ? { ok: true } : { error: "Session not found" });
+      return true;
+    }
+
     if (req.method === "POST" && path === "/api/ai/confirm") {
       const input = await readJson(req, res);
       if (!input) return true;
@@ -140,12 +189,14 @@ export async function handleAiRequest(req, res, env = process.env) {
         json(res, 400, { error: "message required" });
         return true;
       }
+      let sessionId = String(input.sessionId || "").trim();
+      if (!sessionId) sessionId = createSession(user.id).id;
 
       const state = loadCrmState();
       const ai = ensureAi(state);
       const records = visibleRecords(state, user.role);
       const snap = buildDailySnapshot(records, state.settings.finance, ai.memory);
-      const history = Array.isArray(ai.conversations[user.id]) ? ai.conversations[user.id] : [];
+      const history = sessionHistory(user.id, sessionId);
 
       const grounded = [
         { role: "system", content: SYSTEM },
@@ -174,8 +225,8 @@ export async function handleAiRequest(req, res, env = process.env) {
 
       if (!aiKey(env)) {
         const reply = fallbackReply(text, snap);
-        persistTurn(state, user.id, text, reply);
-        json(res, 200, { data: { reply, mode: "deterministic", confirmations: [] } });
+        appendTurn(user.id, sessionId, text, reply);
+        json(res, 200, { data: { reply, mode: "deterministic", confirmations: [], sessionId } });
         return true;
       }
 
@@ -212,8 +263,8 @@ export async function handleAiRequest(req, res, env = process.env) {
         }
       }
       if (!final) final = "I retrieved CRM context but could not finish a recommendation. Ask again with a client or project name.";
-      persistTurn(loadCrmState(), user.id, text, final);
-      json(res, 200, { data: { reply: final, mode: "llm", confirmations } });
+      appendTurn(user.id, sessionId, text, final);
+      json(res, 200, { data: { reply: final, mode: "llm", confirmations, sessionId } });
       return true;
     }
 
@@ -223,15 +274,6 @@ export async function handleAiRequest(req, res, env = process.env) {
     json(res, 500, { error: err instanceof Error ? err.message : "AI failed" });
     return true;
   }
-}
-
-function persistTurn(state, userId, userText, reply) {
-  const ai = ensureAi(state);
-  const list = Array.isArray(ai.conversations[userId]) ? ai.conversations[userId] : [];
-  list.push({ role: "user", content: userText.slice(0, 4000), at: new Date().toISOString() });
-  list.push({ role: "assistant", content: String(reply).slice(0, 8000), at: new Date().toISOString() });
-  ai.conversations[userId] = list.slice(-24);
-  saveCrmState(state);
 }
 
 function fallbackReply(text, snap) {
