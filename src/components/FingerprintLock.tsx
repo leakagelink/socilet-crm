@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Fingerprint } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   BIO_MAX_FAILS,
@@ -12,6 +11,7 @@ import {
   verifyFingerprint,
 } from "@/lib/biometrics";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export function FingerprintLock() {
   const { session, signOut } = useAuth();
@@ -89,11 +89,9 @@ export function FingerprintLock() {
   return (
     <div className="fixed inset-0 z-[80] grid place-items-center bg-ink/95 p-6 pt-[calc(var(--sat)+1.5rem)] pb-[calc(var(--sab)+1.5rem)]">
       <div className="grid w-full max-w-sm justify-items-center gap-4 text-center">
-        <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gold/15 text-gold">
-          <Fingerprint className="h-8 w-8" />
-        </div>
+        <BrandLogo className="h-20 w-auto max-w-[14rem] rounded-2xl ring-1 ring-gold/25" />
         <div>
-          <h1 className="font-display text-2xl">Unlock Socilet</h1>
+          <h1 className="font-display text-2xl">Unlock Socilet CRM</h1>
           <p className="mt-1 text-sm text-paper/55">Fingerprint se app kholo. 5 fail ke baad password + 2FA.</p>
         </div>
         {err ? <p className="text-sm text-rose-300">{err}</p> : null}

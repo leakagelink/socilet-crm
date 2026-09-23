@@ -1,5 +1,6 @@
 import { db, cloudLive } from "@/lib/db";
 import { apiJson } from "@/lib/apiBase";
+import { BRAND_LOGO, brandLogoUrl } from "@/lib/brand";
 
 export type FirmProfile = {
   legal_name: string;
@@ -18,14 +19,14 @@ const EMPTY: FirmProfile = {
   address: "",
   phone: "",
   email: "",
-  logo_url: "/socilet-logo.svg",
+  logo_url: BRAND_LOGO,
 };
 
 export async function loadFirm(): Promise<FirmProfile> {
   if (await cloudLive()) {
     try {
       const res = await apiJson<{ data: FirmProfile }>("/api/crm/settings/firm");
-      if (res.data) return { ...EMPTY, ...res.data };
+      if (res.data) return { ...EMPTY, ...res.data, logo_url: brandLogoUrl(res.data.logo_url) };
     } catch {
       /* local */
     }
@@ -39,22 +40,23 @@ export async function loadFirm(): Promise<FirmProfile> {
     address: String(row?.address || ""),
     phone: String(row?.phone || ""),
     email: String(row?.email || ""),
-    logo_url: String(row?.logo_url || EMPTY.logo_url),
+    logo_url: brandLogoUrl(String(row?.logo_url || EMPTY.logo_url)),
   };
 }
 
 export async function saveFirm(firm: FirmProfile) {
+  const next = { ...firm, logo_url: brandLogoUrl(firm.logo_url) };
   const row = {
     id: "firm",
     base_balance: 0,
     updated_at: new Date().toISOString(),
-    ...firm,
+    ...next,
   };
   if (await cloudLive()) {
     await apiJson("/api/crm/settings/firm", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(firm),
+      body: JSON.stringify(next),
     });
   }
   await db.settings.put(row);

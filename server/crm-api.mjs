@@ -6,7 +6,13 @@ import { getVaultUnlock, loadAuth, prune, vaultConfigured } from "./auth-store.m
 import { pickBestCopy, readJsonCopies, writeJsonCopies } from "./persist.mjs";
 
 function emptyFirm() {
-  return { legal_name: "Socilet", gstin: "", upi_id: "", address: "", phone: "", email: "", logo_url: "/socilet-logo.svg" };
+  return { legal_name: "Socilet", gstin: "", upi_id: "", address: "", phone: "", email: "", logo_url: "/socilet-logo.png" };
+}
+
+function firmLogoUrl(url) {
+  const u = String(url || "").trim();
+  if (!u || /socilet-logo\.svg$/i.test(u)) return "/socilet-logo.png";
+  return u;
 }
 
 function emptyState() {
@@ -294,7 +300,9 @@ export async function handleCrmRequest(req, res, env = process.env) {
     }
 
     if (req.method === "GET" && path === "/api/crm/settings/firm") {
-      json(res, 200, { data: loadState().settings.firm || emptyFirm() });
+      const firm = { ...emptyFirm(), ...(loadState().settings.firm || {}) };
+      firm.logo_url = firmLogoUrl(firm.logo_url);
+      json(res, 200, { data: firm });
       return true;
     }
     if (req.method === "PUT" && path === "/api/crm/settings/firm") {
@@ -313,7 +321,7 @@ export async function handleCrmRequest(req, res, env = process.env) {
         address: String(input.address || ""),
         phone: String(input.phone || ""),
         email: String(input.email || ""),
-        logo_url: String(input.logo_url || "/socilet-logo.svg"),
+        logo_url: firmLogoUrl(input.logo_url),
       };
       saveState(state);
       json(res, 200, { data: state.settings.firm });

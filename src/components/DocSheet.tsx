@@ -1,10 +1,11 @@
 import type { FirmProfile } from "@/lib/firm";
+import { brandLogoUrl } from "@/lib/brand";
 import { asTemplate, type DocView } from "@/lib/docTemplates";
 import { inr } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 function logoSrc(firm: FirmProfile) {
-  return firm.logo_url || "/socilet-logo.svg";
+  return brandLogoUrl(firm.logo_url);
 }
 
 function FirmBlock({ firm, light }: { firm: FirmProfile; light?: boolean }) {
@@ -75,7 +76,7 @@ export function DocSheet({ doc, firm }: { doc: DocView; firm: FirmProfile }) {
       <article className="overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4 bg-[#0b1624] px-8 py-6 text-white">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Socilet" className="h-12 w-12 rounded-xl" />
+            <img src={logo} alt="Socilet" className="h-14 w-auto max-w-[11rem] rounded-xl bg-black object-contain" />
             <div>
               <div className="font-display text-2xl">{firm.legal_name || "Socilet"}</div>
               <FirmBlock firm={firm} light />
@@ -108,7 +109,7 @@ export function DocSheet({ doc, firm }: { doc: DocView; firm: FirmProfile }) {
     return (
       <article className="rounded-2xl bg-white p-10 text-zinc-900">
         <div className="flex items-start justify-between gap-4">
-          <img src={logo} alt="Socilet" className="h-10 w-10" />
+          <img src={logo} alt="Socilet" className="h-12 w-auto max-w-[10rem] bg-black object-contain" />
           <div className="text-right text-[11px] uppercase tracking-[0.28em] text-zinc-400">{kind}</div>
         </div>
         <h1 className="mt-8 font-display text-4xl font-light tracking-tight">{firm.legal_name || "Socilet"}</h1>
@@ -137,7 +138,7 @@ export function DocSheet({ doc, firm }: { doc: DocView; firm: FirmProfile }) {
       <article className="rounded-2xl bg-[#0a0d14] p-8 text-[#f3eee4] shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#e8c36a]/30 pb-6">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Socilet" className="h-12 w-12 rounded-xl ring-1 ring-[#e8c36a]/40" />
+            <img src={logo} alt="Socilet" className="h-14 w-auto max-w-[11rem] rounded-xl bg-black object-contain ring-1 ring-[#e8c36a]/40" />
             <div>
               <div className="font-display text-2xl text-[#e8c36a]">{firm.legal_name || "Socilet"}</div>
               <FirmBlock firm={firm} light />
@@ -167,9 +168,8 @@ export function DocSheet({ doc, firm }: { doc: DocView; firm: FirmProfile }) {
     <article className="rounded-2xl border border-[#e8c36a]/40 bg-[#fbf7ee] p-8 text-zinc-900">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <img src={logo} alt="Socilet" className="h-14 w-14 rounded-2xl" />
+          <img src={logo} alt="Socilet" className="h-16 w-auto max-w-[12rem] rounded-2xl bg-black object-contain" />
           <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-[#8a6a2a]">Socilet</div>
             <h1 className="font-display text-3xl">{firm.legal_name || "Socilet"}</h1>
             <FirmBlock firm={firm} />
           </div>
