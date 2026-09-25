@@ -26,6 +26,7 @@ import { PaymentMethodsPage } from "@/pages/PaymentMethodsPage";
 import { ServiceCredentialsPage } from "@/pages/ServiceCredentialsPage";
 import { MeetingsPage } from "@/pages/MeetingsPage";
 import { MeetingJoinPage, MeetingRoomPage } from "@/pages/MeetingRoomPage";
+import { AdsPage } from "@/pages/AdsPage";
 
 function Crud({ id }: { id: string }) {
   const m = MODULES.find((x) => x.id === id)!;
@@ -40,7 +41,7 @@ function LoginGate() {
   return <LoginPage />;
 }
 
-const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials", "cosmofeed", "payment_methods", "activity", "meetings", "meeting_providers"]);
+const SPECIAL = new Set(["tasks", "ai_analyzer", "balance_tracker", "analytics", "emails", "clients", "quotations", "invoices", "service_credentials", "cosmofeed", "payment_methods", "activity", "meetings", "meeting_providers", "ad_accounts", "ad_campaigns", "ad_leads"]);
 
 export function App() {
   return (
@@ -77,6 +78,7 @@ export function App() {
           <Route path="/emails" element={<EmailsPage />} />
           <Route path="/email-setup" element={<EmailSetupPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/ads" element={<AdsPage />} />
           <Route path="/meetings" element={<MeetingsPage />} />
           <Route path="/meetings/:id/room" element={<MeetingRoomPage />} />
           <Route path="/service-credentials" element={<ServiceCredentialsPage />} />

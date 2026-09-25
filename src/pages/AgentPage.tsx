@@ -60,12 +60,14 @@ const STARTERS = [
   { q: "Client ko follow-up call script do", h: "Call" },
   { q: "Quote draft banao confirm ke sath", h: "Quote" },
   { q: "Client ko email draft karo", h: "Email" },
+  { q: "Ads pe kahan spend badhaun, ROAS ke hisaab se?", h: "Ads" },
   { q: "GST e-invoice latest rules research karo, sources ke sath", h: "Research" },
   { q: "Client proposal ka PDF banao", h: "PDF" },
 ];
 
 const TOOL_HINTS = [
   "Web research",
+  "Ads ROAS",
   "Daily brief",
   "Email / quote / invoice",
   "Call script",
@@ -621,7 +623,7 @@ export function AgentPage() {
           <div className="truncate text-sm font-medium sm:text-base">{active?.title || "Socilet OS"}</div>
           <div className="truncate text-[11px] text-paper/40">
             {status.data?.data.configured
-              ? `${model || status.data.data.model} · today ${new Intl.NumberFormat("en-IN").format(status.data.data.usage?.today?.total_tokens || 0)} tokens`
+              ? `${model || status.data.data.model} · auto-budget · today ${new Intl.NumberFormat("en-IN").format(status.data.data.usage?.today?.total_tokens || 0)} tokens`
               : "Brief mode · AI Keys me API add karo"}
           </div>
         </div>

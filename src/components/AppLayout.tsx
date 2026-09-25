@@ -39,6 +39,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calculator,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -78,6 +79,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/investments": LineChart,
   "/lend-borrow": Handshake,
   "/calculator": Calculator,
+  "/ads": Megaphone,
   "/balance-tracker": Scale,
   "/payment-methods": CreditCard,
   "/analytics": BarChart3,
@@ -119,6 +121,7 @@ const groups = [
       "/payment-methods",
       "/analytics",
       "/gst",
+      "/ads",
     ],
   },
   {
@@ -136,6 +139,7 @@ const titles: Record<string, string> = {
   "/follow-ups": "Follow-ups",
   "/gst": "GST",
   "/calculator": "Calculator",
+  "/ads": "Ads",
   "/activity": "Activity",
   "/cosmofeed-analytics": "Cosmofeed analytics",
   "/cosmofeed-compare": "Cosmofeed compare",

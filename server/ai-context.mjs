@@ -36,6 +36,9 @@ const ACCOUNTANT = new Set([
   "activity",
   "meetings",
   "emails",
+  "ad_accounts",
+  "ad_campaigns",
+  "ad_leads",
 ]);
 
 const SENSITIVE_KEYS = /password|secret|api[_-]?key|token|credential|vault/i;
@@ -103,7 +106,7 @@ export function recordHref(row) {
   if (m === "meetings") return "/meetings";
   if (m === "emails") return "/emails";
   if (m === "reminders") return "/reminders";
-  if (m === "follow_ups") return "/follow-ups";
+  if (m === "ad_accounts" || m === "ad_campaigns" || m === "ad_leads") return "/ads";
   if (m) return `/${m.replace(/_/g, "-")}`;
   return "";
 }
@@ -139,6 +142,45 @@ export function crmDirectory(records) {
     projects: of("projects", 120),
     invoices: of("invoices", 50),
     quotations: of("quotations", 50),
+    ad_campaigns: of("ad_campaigns", 80),
+    ad_leads: of("ad_leads", 80),
+  };
+}
+
+export function crmDirectoryLite(records, n = 36) {
+  const names = (m, k) =>
+    records
+      .filter((r) => r.module === m)
+      .map((r) => str(r.data?.name || r.data?.title || r.data?.invoice_no || r.data?.quote_no))
+      .filter(Boolean)
+      .slice(0, k);
+  return {
+    lookup: "Use crm_search / client_intelligence / project_health for details. Do not invent names missing here.",
+    clients: names("clients", n),
+    projects: names("projects", n),
+    invoices: names("invoices", 16),
+    campaigns: names("ad_campaigns", 16),
+  };
+}
+
+export function snapshotLite(snap) {
+  return {
+    counts: snap.counts,
+    cash: snap.cash,
+    attention: (snap.attention || []).slice(0, 8),
+    ignore: (snap.do_not_spend_time_on || []).slice(0, 4),
+  };
+}
+
+export function slimMemory(memory) {
+  const clip = (arr) =>
+    (Array.isArray(arr) ? arr : []).slice(-6).map((x) => ({
+      text: str(x?.text).slice(0, 160),
+    }));
+  return {
+    user: clip(memory?.user),
+    business: clip(memory?.business),
+    work: clip(memory?.work),
   };
 }
 
@@ -159,6 +201,8 @@ function hay(row) {
     d.quote_no,
     d.assignee,
     d.project_name,
+    d.campaign,
+    d.platform,
     d.message,
     d.subject,
   ]
@@ -228,6 +272,49 @@ export function findMeeting(records, query) {
     meetings.find((r) => hay(r).includes(q)) ||
     null
   );
+}
+
+export function findCampaign(records, query) {
+  const q = str(query).toLowerCase();
+  const campaigns = records.filter((r) => r.module === "ad_campaigns");
+  return (
+    campaigns.find((r) => r.id === query) ||
+    campaigns.find((r) => str(r.data?.name).toLowerCase() === q) ||
+    campaigns.find((r) => hay(r).includes(q)) ||
+    null
+  );
+}
+
+export function adsPack(records) {
+  const campaigns = records.filter((r) => r.module === "ad_campaigns").map((c) => {
+    const row = compactRow(c);
+    const spend = num(row.spend);
+    const revenue = num(row.revenue);
+    const roas = spend > 0 ? Math.round((revenue / spend) * 100) / 100 : 0;
+    return { ...row, roas, underwater: spend > 0 && revenue < spend };
+  });
+  const ranked = [...campaigns].sort((a, b) => Number(b.roas) - Number(a.roas));
+  const leads = records.filter((r) => r.module === "ad_leads").map(compactRow);
+  const open = leads.filter((l) => !["converted", "junk"].includes(str(l.status)));
+  const spend = campaigns.reduce((s, c) => s + num(c.spend), 0);
+  const revenue = campaigns.reduce((s, c) => s + num(c.revenue), 0);
+  return {
+    accounts: records.filter((r) => r.module === "ad_accounts").map(compactRow),
+    totals: {
+      spend_inr: spend,
+      revenue_inr: revenue,
+      roas: spend > 0 ? Math.round((revenue / spend) * 100) / 100 : 0,
+      open_leads: open.length,
+    },
+    campaigns: ranked,
+    winning: ranked.find((c) => num(c.spend) > 0) || null,
+    losing: ranked.filter((c) => c.underwater).slice(0, 8),
+    open_leads: open.slice(0, 20),
+    next:
+      spend > 0 && revenue < spend
+        ? "Pause underwater campaigns. Shift budget to the winning campaign only after CRM cash is tagged as revenue."
+        : "Log spend + attributed invoice/quote cash. Convert open ads leads before buying more traffic.",
+  };
 }
 
 export function clientPack(records, query) {
@@ -371,6 +458,16 @@ export function buildDailySnapshot(records, finance, memory) {
   }
   for (const r of quotesExpiring) push(64, "Quote expiring", "/quotations", str(r.data?.quote_no || r.data?.client));
   for (const r of meetings) push(60, "Upcoming meeting", "/meetings", str(r.data?.title));
+  for (const r of of("ad_leads").filter((x) => ["new", "contacted"].includes(str(x.data?.status)))) {
+    push(67, "Ads lead waiting", "/ads", str(r.data?.name));
+  }
+  for (const r of of("ad_campaigns")) {
+    const spend = num(r.data?.spend);
+    const revenue = num(r.data?.revenue);
+    if (spend > 0 && revenue < spend && str(r.data?.status) === "live") {
+      push(74, "Ads ROAS below 1 — pause or fix", "/ads", str(r.data?.name));
+    }
+  }
   scored.sort((a, b) => b.impact - a.impact);
 
   const ignore = [];

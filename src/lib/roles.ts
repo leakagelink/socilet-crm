@@ -51,6 +51,7 @@ const ACCOUNTANT = [
   "/analytics",
   "/gst",
   "/calculator",
+  "/ads",
   "/meetings",
   "/activity",
   "/reminders",
@@ -66,6 +67,7 @@ export function canAccess(role: RoleName | undefined, path: string) {
   if (path.startsWith("/clients/")) return allowed.includes("/clients");
   if (path.startsWith("/invoices")) return allowed.includes("/invoices");
   if (path.startsWith("/quotations")) return allowed.includes("/quotations");
+  if (path.startsWith("/ads")) return allowed.includes("/ads");
   if (path.startsWith("/meetings")) return allowed.includes("/meetings");
   if (path.startsWith("/print/")) return allowed.includes("/invoices") || allowed.includes("/quotations");
   return false;

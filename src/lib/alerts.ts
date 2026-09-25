@@ -68,7 +68,7 @@ export async function collectAlerts(): Promise<AlertItem[]> {
   const soon = today + 2 * 86400000;
   const now = Date.now();
 
-  const [reminders, tasks, projects, invoices, quotes, recurring, lendBorrow, emails] = await Promise.all([
+  const [reminders, tasks, projects, invoices, quotes, recurring, lendBorrow, emails, adLeads, adRoas] = await Promise.all([
     fromModule("reminders", "/reminders", (row) => {
       const status = str(row.data.status);
       const due = ts(row.data.due_at);
@@ -176,9 +176,33 @@ export async function collectAlerts(): Promise<AlertItem[]> {
       };
     }),
     fromEmail(),
+    fromModule("ad_leads", "/ads", (row) => {
+      const status = str(row.data.status);
+      if (status !== "new") return null;
+      return {
+        source_id: `adlead:${row.id}`,
+        title: "New ads lead",
+        message: `${str(row.data.name)} · ${str(row.data.campaign)}`,
+        level: "info" as const,
+        href: "/ads",
+      };
+    }),
+    fromModule("ad_campaigns", "/ads", (row) => {
+      if (str(row.data.status) !== "live") return null;
+      const spend = Number(row.data.spend);
+      const revenue = Number(row.data.revenue);
+      if (!Number.isFinite(spend) || spend <= 0 || !Number.isFinite(revenue) || revenue >= spend) return null;
+      return {
+        source_id: `adroas:${row.id}`,
+        title: "Ads ROAS below 1",
+        message: str(row.data.name),
+        level: "warning" as const,
+        href: "/ads",
+      };
+    }),
   ]);
 
-  return [...emails, ...reminders, ...tasks, ...projects, ...invoices, ...quotes, ...recurring, ...lendBorrow];
+  return [...emails, ...reminders, ...tasks, ...projects, ...invoices, ...quotes, ...recurring, ...lendBorrow, ...adLeads, ...adRoas];
 }
 
 export async function syncNotifications() {

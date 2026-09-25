@@ -2,13 +2,16 @@ import { randomUUID } from "node:crypto";
 import { loadCrmState, saveCrmState } from "./crm-api.mjs";
 import {
   buildDailySnapshot,
+  adsPack,
   canUseModule,
   clientPack,
   compactRow,
+  findCampaign,
   findClient,
   findMeeting,
   projectPack,
   searchCrm,
+  snapshotLite,
   visibleRecords,
 } from "./ai-context.mjs";
 import { documentBuffer, generateImageBuffer, saveGeneratedFile } from "./ai-files.mjs";
@@ -28,9 +31,13 @@ const WRITE_OK = {
     "quotations",
     "invoices",
     "emails",
+    "ad_campaigns",
+    "ad_leads",
+    "ad_accounts",
+    "spends",
   ]),
   designer: new Set(["tasks", "reminders", "clients", "projects", "notifications", "activity", "meetings"]),
-  accountant: new Set(["reminders", "clients", "quotations", "invoices", "notifications", "activity"]),
+  accountant: new Set(["reminders", "clients", "quotations", "invoices", "notifications", "activity", "ad_campaigns", "ad_leads", "spends"]),
 };
 
 export const TOOLS = [
@@ -334,7 +341,81 @@ export const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "ads_performance",
+      description: "Ads ROAS snapshot: accounts, campaigns ranked, winning/losing, open leads. Use before recommending more spend.",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "log_ad_spend",
+      description: "Add spend (INR) to a campaign and a Spends row (category ad spend). Do not invent spend.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign: { type: "string" },
+          amount: { type: "number" },
+          date: { type: "string" },
+        },
+        required: ["campaign", "amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "capture_ad_lead",
+      description: "Save a lead from ads. status new|contacted.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          phone: { type: "string" },
+          email: { type: "string" },
+          campaign: { type: "string" },
+          notes: { type: "string" },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "convert_ad_lead",
+      description: "Turn an ads lead into a CRM client (match email/phone/name or create).",
+      parameters: {
+        type: "object",
+        properties: { lead: { type: "string" } },
+        required: ["lead"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "winning_ad_quote",
+      description: "Draft a quotation from the best ROAS campaign (or named campaign) for a client/lead. Confirm before save. Never invent amount.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign: { type: "string" },
+          client: { type: "string" },
+          amount: { type: "number" },
+        },
+      },
+    },
+  },
 ];
+
+export function selectTools(names) {
+  const want = new Set(names);
+  return TOOLS.filter((t) => want.has(t.function.name));
+}
 
 function writes(role, module) {
   return WRITE_OK[role]?.has(module) || false;
@@ -412,10 +493,10 @@ export async function executeTool(name, rawArgs, user, env = process.env) {
   const fail = (msg) => ({ ok: false, error: msg });
 
   if (name === "daily_brief") {
-    return { ok: true, data: buildDailySnapshot(records, state.settings.finance, ai.memory) };
+    return { ok: true, data: snapshotLite(buildDailySnapshot(records, state.settings.finance, ai.memory)) };
   }
   if (name === "crm_search") {
-    return { ok: true, data: searchCrm(records, args.query, Math.min(30, Number(args.limit) || 18)) };
+    return { ok: true, data: searchCrm(records, args.query, Math.min(12, Number(args.limit) || 8)) };
   }
   if (name === "client_intelligence") {
     return { ok: true, data: clientPack(records, args.query) };
@@ -729,6 +810,153 @@ export async function executeTool(name, rawArgs, user, env = process.env) {
   if (name === "company_pack") {
     const pack = await companyPack(Boolean(args.refresh));
     return { ok: true, data: pack };
+  }
+
+  if (name === "ads_performance") {
+    return { ok: true, data: adsPack(records) };
+  }
+
+  if (name === "log_ad_spend") {
+    if (!writes(user.role, "ad_campaigns")) return fail("Not allowed to log ad spend.");
+    const campaign = findCampaign(records, args.campaign);
+    if (!campaign) return fail("Campaign not found. Create it under Ads → Campaigns first.");
+    const amount = Number(args.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return fail("Spend amount required. Do not invent it.");
+    const live = state.records.find((r) => r.id === campaign.id);
+    live.data.spend = Number(live.data.spend || 0) + amount;
+    live.updated_at = now;
+    let spendRow = null;
+    if (writes(user.role, "spends")) {
+      spendRow = {
+        id: randomUUID(),
+        module: "spends",
+        data: {
+          title: `Ads · ${live.data.name}`,
+          category: "ad spend",
+          ad_for: String(live.data.name || ""),
+          campaign_name: String(live.data.name || ""),
+          amount,
+          date: String(args.date || now.slice(0, 10)),
+          payment_method: "Other",
+          notes: live.id,
+        },
+        created_at: now,
+        updated_at: now,
+      };
+      putRecord(state, spendRow);
+    }
+    activity(state, user, `AI logged ad spend ${amount} on ${live.data.name}`);
+    audit(state, { user: user.email, tool: name, entity: live.id, result: "ok" });
+    saveCrmState(state);
+    return { ok: true, data: { campaign: compactRow(live), spend: spendRow ? compactRow(spendRow) : null } };
+  }
+
+  if (name === "capture_ad_lead") {
+    if (!writes(user.role, "ad_leads")) return fail("Not allowed to capture ads leads.");
+    const leadName = String(args.name || "").trim();
+    if (!leadName) return fail("Lead name required.");
+    const campaign = args.campaign ? findCampaign(records, args.campaign) : null;
+    const row = {
+      id: randomUUID(),
+      module: "ad_leads",
+      data: {
+        name: leadName,
+        phone: String(args.phone || "").trim(),
+        email: String(args.email || "").trim(),
+        campaign: campaign?.data?.name || String(args.campaign || ""),
+        campaign_id: campaign?.id || "",
+        source_account: campaign?.data?.account || "",
+        status: "new",
+        notes: String(args.notes || "").trim(),
+      },
+      created_at: now,
+      updated_at: now,
+    };
+    putRecord(state, row);
+    if (campaign) {
+      const live = state.records.find((r) => r.id === campaign.id);
+      if (live) live.data.leads_count = Number(live.data.leads_count || 0) + 1;
+    }
+    activity(state, user, `AI captured ads lead ${leadName}`);
+    audit(state, { user: user.email, tool: name, entity: row.id, result: "ok" });
+    saveCrmState(state);
+    return { ok: true, data: compactRow(row) };
+  }
+
+  if (name === "convert_ad_lead") {
+    if (!writes(user.role, "ad_leads") || !writes(user.role, "clients")) return fail("Not allowed to convert ads leads.");
+    const q = String(args.lead || "").toLowerCase();
+    const lead =
+      state.records.find((r) => r.module === "ad_leads" && r.id === args.lead) ||
+      state.records.find((r) => r.module === "ad_leads" && String(r.data?.name || "").toLowerCase() === q) ||
+      null;
+    if (!lead) return fail("Lead not found.");
+    let client = findClient(records, lead.data.email || lead.data.phone || lead.data.name || lead.data.client);
+    if (!client) {
+      const created = {
+        id: randomUUID(),
+        module: "clients",
+        data: {
+          name: String(lead.data.name || "Ads lead").trim(),
+          email: String(lead.data.email || ""),
+          phone: String(lead.data.phone || ""),
+          notes: `From ads · ${lead.data.campaign || ""}`,
+        },
+        created_at: now,
+        updated_at: now,
+      };
+      putRecord(state, created);
+      client = created;
+    }
+    lead.data.status = "converted";
+    lead.data.client = client.data.name;
+    lead.data.client_id = client.id;
+    lead.updated_at = now;
+    activity(state, user, `AI converted ads lead ${lead.data.name} → ${client.data.name}`);
+    audit(state, { user: user.email, tool: name, entity: lead.id, result: "ok" });
+    saveCrmState(state);
+    return { ok: true, data: { lead: compactRow(lead), client: compactRow(client) } };
+  }
+
+  if (name === "winning_ad_quote") {
+    if (!writes(user.role, "quotations")) return fail("Not allowed to draft quotes.");
+    const pack = adsPack(records);
+    const campaign = args.campaign ? findCampaign(records, args.campaign) : null;
+    const win = campaign || (pack.winning && state.records.find((r) => r.id === pack.winning.id));
+    if (!win) return fail("No campaign with spend yet. Log spend first.");
+    let client = args.client ? findClient(records, args.client) : null;
+    if (!client) {
+      const lead = records.find(
+        (r) =>
+          r.module === "ad_leads" &&
+          (r.data?.campaign_id === win.id || String(r.data?.campaign || "") === String(win.data.name || "")) &&
+          (r.data?.client_id || r.data?.status === "converted" || r.data?.status === "new"),
+      );
+      if (lead?.data?.client_id) client = state.records.find((r) => r.id === lead.data.client_id);
+      else if (lead) client = findClient(records, lead.data.email || lead.data.name);
+    }
+    if (!client) return fail("Name the client or convert an ads lead first.");
+    const amount = Number(args.amount);
+    const fallback = Number(win.data.offer_amount);
+    const useAmt = Number.isFinite(amount) && amount > 0 ? amount : Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+    if (!useAmt) return fail("Amount required from offer_amount or the user. Do not invent it.");
+    const apply = {
+      module: "quotations",
+      client: String(client.data.name || ""),
+      client_id: client.id,
+      client_email: String(client.data.email || ""),
+      client_phone: String(client.data.phone || ""),
+      item: String(win.data.offer || win.data.name || ""),
+      amount: useAmt,
+      gst_amount: 0,
+      status: "draft",
+      quote_no: `QTE-${Date.now().toString(36).toUpperCase()}`,
+      campaign_id: win.id,
+      campaign_name: String(win.data.name || ""),
+      notes: `From ads campaign ${win.data.name}`,
+      share_token: randomUUID(),
+    };
+    return queueConfirm(state, user, "create_quotation", apply, apply);
   }
 
   if (name === "generate_image") {

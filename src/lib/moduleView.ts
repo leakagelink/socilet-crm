@@ -51,6 +51,7 @@ export function rowMoney(row: RecordRow, moduleId: string) {
   if (moduleId === "lend_borrow") return { label: "Remaining", value: money(row.data.remaining_amount) || money(row.data.expected_return) || money(row.data.amount) };
   if (moduleId === "digital_products") return { label: "Sale", value: money(row.data.resell_price) || money(row.data.amount) };
   if (moduleId === "invoices" || moduleId === "quotations") return { label: "Amount", value: money(row.data.amount) };
+  if (moduleId === "ad_campaigns") return { label: "Spend", value: money(row.data.spend) };
   for (const key of ["amount", "total_amount", "price", "gst_amount"]) {
     if (row.data[key] != null && money(row.data[key])) return { label: "Amount", value: money(row.data[key]) };
   }

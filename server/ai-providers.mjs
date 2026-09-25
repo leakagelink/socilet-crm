@@ -340,7 +340,7 @@ async function readSseChat(res, onDelta) {
   return { message, usage };
 }
 
-export async function completeChat(env, { messages, tools, hard, model: prefer, onDelta }) {
+export async function completeChat(env, { messages, tools, hard, model: prefer, onDelta, max_tokens }) {
   const list = readyProviders(env);
   if (!list.length) return { error: "no_key" };
   const want = String(prefer || "").trim();
@@ -349,6 +349,8 @@ export async function completeChat(env, { messages, tools, hard, model: prefer, 
     const model = want || (hard ? p.reason_model : p.model);
     const stream = typeof onDelta === "function";
     const body = { model, messages, temperature: 0.2, stream };
+    const cap = Number(max_tokens);
+    if (Number.isFinite(cap) && cap > 0) body.max_tokens = Math.round(cap);
     if (tools?.length) {
       body.tools = tools;
       body.tool_choice = "auto";

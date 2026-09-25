@@ -6,6 +6,7 @@ import { handleCrmRequest, runDailyBackup } from "./server/crm-api.mjs";
 import { handleAuthRequest } from "./server/auth-api.mjs";
 import { handleMeetRequest } from "./server/meet-api.mjs";
 import { handleAiRequest } from "./server/ai-api.mjs";
+import { handleAdsRequest } from "./server/ads-api.mjs";
 
 const dist = join(import.meta.dirname, "dist");
 const port = Number(process.env.PORT || 43721);
@@ -35,6 +36,10 @@ createServer(async (req, res) => {
   }
   if (path.startsWith("/api/ai")) {
     await handleAiRequest(req, res, process.env);
+    return;
+  }
+  if (path.startsWith("/api/ads")) {
+    await handleAdsRequest(req, res, process.env);
     return;
   }
   if (path.startsWith("/api/crm")) {
