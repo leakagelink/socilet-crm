@@ -54,10 +54,12 @@ import { cn } from "@/lib/utils";
 import { canAccess, type RoleName } from "@/lib/roles";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AgentDock } from "@/components/AgentDock";
+import { useAgentImmersive } from "@/lib/agentChrome";
 
 const ICONS: Record<string, LucideIcon> = {
   "/": LayoutDashboard,
   "/agent": Sparkles,
+  "/ai-keys": KeyRound,
   "/projects": FolderKanban,
   "/tasks": CheckSquare,
   "/quotations": FileText,
@@ -95,7 +97,7 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 const groups = [
-  { name: "AI", paths: ["/agent"] },
+  { name: "AI", paths: ["/agent", "/ai-keys"] },
   { name: "Work", paths: ["/", "/follow-ups", "/clients", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
   {
     name: "Finance",
@@ -127,6 +129,7 @@ const groups = [
 const titles: Record<string, string> = {
   "/": "Dashboard",
   "/agent": "AI Agent",
+  "/ai-keys": "AI keys",
   "/account": "Account",
   "/email-setup": "Email setup",
   "/follow-ups": "Follow-ups",
@@ -360,6 +363,8 @@ export function AppLayout() {
   const { session, signOut } = useAuth();
   const navigate = useNavigate();
   const loc = useLocation();
+  const { immersive } = useAgentImmersive();
+  const agentFull = loc.pathname === "/agent" && immersive;
   const [open, setOpen] = useState(false);
   const [dockOpen, setDockOpen] = useQuickDockOpen();
   useEffect(() => {
@@ -369,7 +374,13 @@ export function AppLayout() {
     }
   }, []);
   return (
-    <div className="min-h-full min-w-0 lg:grid lg:grid-cols-[248px_1fr]">
+    <div
+      className={cn(
+        "min-h-full min-w-0",
+        agentFull ? "flex h-dvh max-h-dvh flex-col overflow-hidden" : "lg:grid lg:grid-cols-[248px_1fr]",
+      )}
+    >
+      {agentFull ? null : (
       <aside className="glass hidden border-r border-gold/15 p-4 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <div className="mb-7 px-1">
           <BrandLogo className="h-14 w-auto max-w-full" />
@@ -403,7 +414,9 @@ export function AppLayout() {
           <NavList />
         </div>
       </aside>
+      )}
       <div className={cn("flex min-h-full min-w-0 flex-col", loc.pathname === "/agent" && "h-dvh max-h-dvh overflow-hidden lg:h-screen lg:max-h-screen")}>
+        {agentFull ? null : (
         <header className="sticky top-0 z-30 flex min-h-12 min-w-0 items-center justify-between gap-2 border-b border-gold/15 bg-panel/90 pb-2.5 pl-[max(0.75rem,var(--sal))] pr-[max(0.75rem,var(--sar))] pt-[calc(var(--sat)+0.65rem)] backdrop-blur-md sm:gap-3 sm:pb-3 sm:pl-4 sm:pr-4 sm:pt-[calc(var(--sat)+0.75rem)]">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <OverlayPortal open={open} onClose={() => setOpen(false)}>
@@ -437,7 +450,8 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        {dockOpen ? (
+        )}
+        {agentFull ? null : dockOpen ? (
           <nav
             className="fixed left-[max(0.4rem,var(--sal))] top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-1 print:hidden lg:hidden"
             aria-label="Spends and email"
@@ -466,17 +480,25 @@ export function AppLayout() {
           key={loc.pathname}
           className={cn(
             loc.pathname === "/agent"
-              ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2 pb-[calc(4.35rem+var(--sab))] sm:p-3 lg:p-4 lg:pb-[max(1rem,var(--sab))]"
+              ? agentFull
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+                : "flex min-h-0 flex-1 flex-col overflow-hidden p-2 pb-[calc(4.35rem+var(--sab))] sm:p-3 lg:p-4 lg:pb-[max(1rem,var(--sab))]"
               : "page-enter min-w-0 max-w-full flex-1 overflow-x-hidden p-3 pb-[calc(4.5rem+var(--sab))] sm:p-4 md:p-8 lg:pb-[max(1.25rem,var(--sab))] lg:pl-8",
-            dockOpen
-              ? "pl-[max(4rem,calc(3.5rem+var(--sal)))] sm:pl-16 md:pl-16 lg:pl-8"
-              : "pl-[max(0.85rem,calc(0.5rem+var(--sal)))] sm:pl-4 md:pl-8 lg:pl-8",
+            agentFull
+              ? "pl-0"
+              : dockOpen
+                ? "pl-[max(4rem,calc(3.5rem+var(--sal)))] sm:pl-16 md:pl-16 lg:pl-8"
+                : "pl-[max(0.85rem,calc(0.5rem+var(--sal)))] sm:pl-4 md:pl-8 lg:pl-8",
           )}
         >
           <Outlet />
         </main>
-        <AgentDock />
-        <BottomBar onMore={() => setOpen(true)} />
+        {agentFull ? null : (
+          <>
+            <AgentDock />
+            <BottomBar onMore={() => setOpen(true)} />
+          </>
+        )}
       </div>
     </div>
   );

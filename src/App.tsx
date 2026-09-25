@@ -4,6 +4,7 @@ import { RequireAuth } from "@/components/RequireAuth";
 import { LoginPage, DeniedPage } from "@/pages/LoginPage";
 import { DashboardPage, AnalyticsPage, AiAnalyzerPage } from "@/pages/SpecialPages";
 import { AgentPage } from "@/pages/AgentPage";
+import { AiKeysPage } from "@/pages/AiKeysPage";
 import { BalanceTrackerPage } from "@/pages/BalanceTrackerPage";
 import { CosmofeedAnalyticsPage, CosmofeedComparePage, CosmofeedPage } from "@/pages/CosmofeedPages";
 import { EmailsPage } from "@/pages/EmailsPage";
@@ -51,6 +52,7 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/agent" element={<AgentPage />} />
+          <Route path="/ai-keys" element={<AiKeysPage />} />
           <Route path="/follow-ups" element={<FollowUpsPage />} />
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/gst" element={<GstPage />} />

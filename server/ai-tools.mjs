@@ -10,6 +10,7 @@ import {
   searchCrm,
   visibleRecords,
 } from "./ai-context.mjs";
+import { documentBuffer, generateImageBuffer, saveGeneratedFile } from "./ai-files.mjs";
 
 const WRITE_OK = {
   admin: new Set([
@@ -179,6 +180,40 @@ export const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "generate_document",
+      description:
+        "Create a downloadable file the user can save: pdf, docx, html, md, csv, txt, json, svg. Put the FULL finished content in body. Use for proposals, reports, letters, invoices drafts, lists. Hindi/Unicode: prefer docx or html. PDF uses Latin/Helvetica.",
+      parameters: {
+        type: "object",
+        properties: {
+          format: { type: "string", description: "pdf|docx|html|md|csv|txt|json|svg" },
+          title: { type: "string" },
+          body: { type: "string", description: "Full document text. For csv, include header row." },
+        },
+        required: ["format", "title", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_image",
+      description:
+        "Create an image/poster/logo. Uses the image model when available, otherwise a branded SVG. Write a detailed visual prompt.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          prompt: { type: "string" },
+          kind: { type: "string", description: "poster|logo|illustration|photo" },
+        },
+        required: ["prompt"],
+      },
+    },
+  },
 ];
 
 function writes(role, module) {
@@ -247,7 +282,7 @@ function queueConfirm(state, user, tool, preview, apply) {
   return { needs_confirmation: true, token, preview, warning: "Confirm in the UI before this change is written." };
 }
 
-export function executeTool(name, rawArgs, user) {
+export async function executeTool(name, rawArgs, user, env = process.env) {
   const args = rawArgs && typeof rawArgs === "object" ? rawArgs : {};
   const state = loadCrmState();
   const ai = ensureAi(state);
@@ -386,6 +421,29 @@ export function executeTool(name, rawArgs, user) {
     audit(state, { user: user.email, tool: name, entity: row.id, result: "ok" });
     saveCrmState(state);
     return { ok: true, data: compactRow(row) };
+  }
+
+  if (name === "generate_document") {
+    const format = String(args.format || "pdf").toLowerCase().replace(/^\./, "");
+    const title = String(args.title || "Socilet document").trim().slice(0, 120);
+    const body = String(args.body || "").trim();
+    if (!body) return fail("Document body required.");
+    const built = documentBuffer(format, title, body);
+    const file = saveGeneratedFile(user.id, { name: title, ...built });
+    audit(state, { user: user.email, tool: name, entity: file.id, result: "ok", instruction: title });
+    saveCrmState(state);
+    return { ok: true, file, data: { created: true, ...file } };
+  }
+
+  if (name === "generate_image") {
+    const title = String(args.title || args.kind || "Image").trim().slice(0, 80);
+    const prompt = String(args.prompt || title).trim();
+    if (!prompt) return fail("Image prompt required.");
+    const built = await generateImageBuffer(env, { title, prompt, kind: String(args.kind || "poster") });
+    const file = saveGeneratedFile(user.id, { name: title, ...built });
+    audit(state, { user: user.email, tool: name, entity: file.id, result: "ok", instruction: title });
+    saveCrmState(state);
+    return { ok: true, file, data: { created: true, source: built.source, ...file } };
   }
 
   return fail(`Unknown tool ${name}`);

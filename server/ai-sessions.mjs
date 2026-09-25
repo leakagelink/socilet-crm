@@ -46,6 +46,7 @@ export function sessionSummary(s) {
     created_at: s.created_at,
     preview: String(firstUser?.content || "").slice(0, 90),
     turns: Array.isArray(s.messages) ? s.messages.length : 0,
+    pinned: Boolean(s.pinned),
   };
 }
 
@@ -54,7 +55,7 @@ export function listSessions(userId) {
   const ai = ensureAi(state);
   const list = userSessionList(ai, userId)
     .map(sessionSummary)
-    .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || String(b.updated_at).localeCompare(String(a.updated_at)));
   return list;
 }
 
@@ -86,16 +87,22 @@ export function getSession(userId, id) {
       role: m.role,
       content: m.content,
       at: m.at,
+      files: Array.isArray(m.files) ? m.files : undefined,
     })),
   };
 }
 
 export function renameSession(userId, id, title) {
+  return patchSession(userId, id, { title });
+}
+
+export function patchSession(userId, id, patch) {
   const state = loadCrmState();
   const ai = ensureAi(state);
   const row = userSessionList(ai, userId).find((s) => s.id === id);
   if (!row) return null;
-  row.title = titleFrom(title);
+  if (patch.title != null && String(patch.title).trim()) row.title = titleFrom(patch.title);
+  if (typeof patch.pinned === "boolean") row.pinned = patch.pinned;
   row.updated_at = nowIso();
   saveCrmState(state);
   return sessionSummary(row);
@@ -112,7 +119,7 @@ export function deleteSession(userId, id) {
   return true;
 }
 
-export function appendTurn(userId, sessionId, userText, reply) {
+export function appendTurn(userId, sessionId, userText, reply, files = []) {
   const state = loadCrmState();
   const ai = ensureAi(state);
   const list = userSessionList(ai, userId);
@@ -130,7 +137,12 @@ export function appendTurn(userId, sessionId, userText, reply) {
   const at = nowIso();
   row.messages = Array.isArray(row.messages) ? row.messages : [];
   row.messages.push({ role: "user", content: String(userText).slice(0, 4000), at });
-  row.messages.push({ role: "assistant", content: String(reply).slice(0, 8000), at });
+  row.messages.push({
+    role: "assistant",
+    content: String(reply).slice(0, 8000),
+    at,
+    files: Array.isArray(files) && files.length ? files : undefined,
+  });
   row.messages = row.messages.slice(-MAX_TURNS);
   if (!row.title || row.title === "New session") row.title = titleFrom(userText);
   row.updated_at = at;
