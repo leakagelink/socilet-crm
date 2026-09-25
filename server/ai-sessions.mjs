@@ -158,4 +158,11 @@ export function sessionHistory(userId, sessionId) {
   return Array.isArray(row?.messages) ? row.messages : [];
 }
 
+export function otherSessionIndex(userId, currentId) {
+  return listSessions(userId)
+    .filter((s) => s.id !== currentId)
+    .slice(0, 15)
+    .map((s) => ({ title: s.title, preview: s.preview, updated_at: s.updated_at, turns: s.turns }));
+}
+
 export { titleFrom };

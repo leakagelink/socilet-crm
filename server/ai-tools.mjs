@@ -6,11 +6,15 @@ import {
   clientPack,
   compactRow,
   findClient,
+  findMeeting,
   projectPack,
   searchCrm,
   visibleRecords,
 } from "./ai-context.mjs";
 import { documentBuffer, generateImageBuffer, saveGeneratedFile } from "./ai-files.mjs";
+import { sendCrmEmail } from "./email-api.mjs";
+import { runWebResearch } from "./ai-research.mjs";
+import { companyPack } from "./ai-company.mjs";
 
 const WRITE_OK = {
   admin: new Set([
@@ -185,7 +189,7 @@ export const TOOLS = [
     function: {
       name: "generate_document",
       description:
-        "Create a downloadable file the user can save: pdf, docx, html, md, csv, txt, json, svg. Put the FULL finished content in body. Use for proposals, reports, letters, invoices drafts, lists. Hindi/Unicode: prefer docx or html. PDF uses Latin/Helvetica.",
+        "Create a downloadable file the user can save: pdf, docx, html, md, csv, txt, json, svg. Put the FULL finished content in body. Use for proposals, reports, letters, invoices drafts, lists. Hindi/Devanagari is supported in PDF (embedded font) as well as docx/html.",
       parameters: {
         type: "object",
         properties: {
@@ -211,6 +215,122 @@ export const TOOLS = [
           kind: { type: "string", description: "poster|logo|illustration|photo" },
         },
         required: ["prompt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "draft_email",
+      description:
+        "Draft a client email. Does not send until the user confirms in the UI. Use CRM email if to is omitted.",
+      parameters: {
+        type: "object",
+        properties: {
+          client: { type: "string" },
+          to: { type: "string" },
+          subject: { type: "string" },
+          body: { type: "string" },
+        },
+        required: ["subject", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "draft_invoice",
+      description: "Draft a CRM invoice. Never invent amount. User must confirm before it is saved.",
+      parameters: {
+        type: "object",
+        properties: {
+          client: { type: "string" },
+          amount: { type: "number" },
+          gst_amount: { type: "number" },
+          item: { type: "string" },
+          due_date: { type: "string" },
+          notes: { type: "string" },
+        },
+        required: ["client", "amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "draft_quotation",
+      description: "Draft a CRM quotation. Never invent amount. User must confirm before it is saved.",
+      parameters: {
+        type: "object",
+        properties: {
+          client: { type: "string" },
+          amount: { type: "number" },
+          gst_amount: { type: "number" },
+          item: { type: "string" },
+          valid_until: { type: "string" },
+          notes: { type: "string" },
+        },
+        required: ["client", "amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "log_meeting",
+      description:
+        "Save meeting notes. Optionally mark ended, create a CRM task, and a reminder. Finds meeting by title or creates one.",
+      parameters: {
+        type: "object",
+        properties: {
+          meeting: { type: "string" },
+          notes: { type: "string" },
+          next_action: { type: "string" },
+          due_date: { type: "string" },
+          client: { type: "string" },
+        },
+        required: ["notes"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "followup_script",
+      description: "Build a follow-up call script from the client pack (cash, delivery, ask, close).",
+      parameters: {
+        type: "object",
+        properties: { client: { type: "string" } },
+        required: ["client"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_research",
+      description:
+        "Live web research with sources. Use for market, competitor, news, GST/legal, tech, pricing outside CRM. depth=advanced fetches page text. Never use this for CRM balances — those come from client_intelligence.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          focus: { type: "string", description: "market|competitor|legal|news|tech|pricing|general" },
+          depth: { type: "string", description: "quick|advanced" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "company_pack",
+      description:
+        "Reload Socilet brand facts and live extracts from socilet.com / socilet.in. Use when the user asks about the company site, public offering, or says the brand pack is stale.",
+      parameters: {
+        type: "object",
+        properties: { refresh: { type: "boolean" } },
       },
     },
   },
@@ -428,11 +548,187 @@ export async function executeTool(name, rawArgs, user, env = process.env) {
     const title = String(args.title || "Socilet document").trim().slice(0, 120);
     const body = String(args.body || "").trim();
     if (!body) return fail("Document body required.");
-    const built = documentBuffer(format, title, body);
+    const built = await documentBuffer(format, title, body);
     const file = saveGeneratedFile(user.id, { name: title, ...built });
     audit(state, { user: user.email, tool: name, entity: file.id, result: "ok", instruction: title });
     saveCrmState(state);
     return { ok: true, file, data: { created: true, ...file } };
+  }
+
+  if (name === "draft_email") {
+    if (!writes(user.role, "emails")) return fail("Not allowed to send email.");
+    const client = args.client ? findClient(records, args.client) : null;
+    const to = String(args.to || client?.data?.email || "").trim();
+    const subject = String(args.subject || "").trim();
+    const body = String(args.body || "").trim();
+    if (!to.includes("@")) return fail("Need a To address. Client has no email in CRM.");
+    if (!subject || !body) return fail("subject and body required.");
+    return queueConfirm(
+      state,
+      user,
+      "send_email",
+      { to, subject, body, client: client?.data?.name || args.client || "" },
+      { to, subject, text: body, client_name: client?.data?.name || "" },
+    );
+  }
+
+  if (name === "draft_invoice" || name === "draft_quotation") {
+    const module = name === "draft_invoice" ? "invoices" : "quotations";
+    if (!writes(user.role, module)) return fail(`Not allowed to create ${module}.`);
+    const client = findClient(records, args.client);
+    if (!client) return fail("Client not found. Name the CRM client exactly.");
+    const amount = Number(args.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return fail("Amount required from CRM or the user. Do not invent it.");
+    const gst = Number(args.gst_amount);
+    const gst_amount = Number.isFinite(gst) && gst >= 0 ? gst : 0;
+    const item = String(args.item || "").trim();
+    const notes = String(args.notes || "").trim();
+    const prefix = module === "invoices" ? "INV" : "QTE";
+    const noField = module === "invoices" ? "invoice_no" : "quote_no";
+    const dateField = module === "invoices" ? "due_date" : "valid_until";
+    const givenDate = String(args.due_date || args.valid_until || "").trim();
+    const fallbackDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const apply = {
+      module,
+      client: String(client.data.name || ""),
+      client_id: client.id,
+      client_email: String(client.data.email || ""),
+      client_phone: String(client.data.phone || ""),
+      client_gstin: String(client.data.gstin || ""),
+      client_address: String(client.data.address || ""),
+      item,
+      amount,
+      gst_amount,
+      status: "draft",
+      [noField]: `${prefix}-${Date.now().toString(36).toUpperCase()}`,
+      [dateField]: givenDate || fallbackDate,
+      notes,
+      share_token: randomUUID(),
+    };
+    return queueConfirm(state, user, `create_${module === "invoices" ? "invoice" : "quotation"}`, apply, apply);
+  }
+
+  if (name === "log_meeting") {
+    if (!writes(user.role, "meetings")) return fail("Not allowed to log meetings.");
+    const notes = String(args.notes || "").trim();
+    if (!notes) return fail("Meeting notes required.");
+    let live = null;
+    if (args.meeting) {
+      const found = findMeeting(records, args.meeting);
+      if (found) live = state.records.find((r) => r.id === found.id);
+    }
+    if (!live) {
+      live = {
+        id: randomUUID(),
+        module: "meetings",
+        data: {
+          title: String(args.meeting || args.client || "Meeting").trim().slice(0, 120) || "Meeting",
+          kind: "meeting",
+          direction: "outgoing",
+          client: String(args.client || "").trim(),
+          status: "ended",
+          description: "",
+          created_by: user.email,
+          active: true,
+        },
+        created_at: now,
+        updated_at: now,
+      };
+      putRecord(state, live);
+    }
+    const prev = String(live.data.description || "").trim();
+    const line = `[${now.slice(0, 16).replace("T", " ")} AI] ${notes}`;
+    live.data.description = prev ? `${prev}\n${line}` : line;
+    live.data.status = "ended";
+    if (args.client && !live.data.client) live.data.client = String(args.client).trim();
+    live.updated_at = now;
+    const extra = [];
+    const next = String(args.next_action || "").trim();
+    if (next && writes(user.role, "tasks")) {
+      const task = {
+        id: randomUUID(),
+        module: "tasks",
+        data: {
+          title: next.slice(0, 160),
+          status: "todo",
+          priority: "high",
+          assignee: user.email,
+          due_date: String(args.due_date || "").trim(),
+        },
+        created_at: now,
+        updated_at: now,
+      };
+      putRecord(state, task);
+      extra.push(compactRow(task));
+      if (writes(user.role, "reminders") && task.data.due_date) {
+        const rem = {
+          id: randomUUID(),
+          module: "reminders",
+          data: {
+            title: next.slice(0, 160),
+            due_at: task.data.due_date,
+            priority: "high",
+            status: "pending",
+            client: live.data.client || "",
+            notes: notes.slice(0, 400),
+          },
+          created_at: now,
+          updated_at: now,
+        };
+        putRecord(state, rem);
+        extra.push(compactRow(rem));
+      }
+    }
+    activity(state, user, `AI logged meeting ${live.data.title}`);
+    audit(state, { user: user.email, tool: name, entity: live.id, result: "ok" });
+    saveCrmState(state);
+    return { ok: true, data: { meeting: compactRow(live), created: extra } };
+  }
+
+  if (name === "followup_script") {
+    const pack = clientPack(records, args.client);
+    if (pack.error) return fail(pack.error);
+    const c = pack.client;
+    const who = String(c.name || c.label || "there");
+    const remain = Number(pack.assessment.remaining_inr) || 0;
+    const opens = pack.assessment.open_invoices;
+    const waiting = pack.assessment.waiting_on_us || [];
+    return {
+      ok: true,
+      data: {
+        client: c,
+        assessment: pack.assessment,
+        script: {
+          opener: `Hi ${who}, this is a quick check-in on the work we're doing together.`,
+          cash:
+            remain > 0
+              ? `Pending on our books: about ₹${Math.round(remain)}. ${opens} open invoice(s). Confirm a payment date before we close.`
+              : "Books look clear on remaining project amount. Confirm if anything else is outstanding on their side.",
+          delivery: waiting.length
+            ? `We still owe: ${waiting.join(", ")}. Give an honest date — do not over-promise.`
+            : "No running delivery flagged — ask if they need anything else.",
+          ask:
+            remain > 0
+              ? `Ask: "Can we lock a transfer this week, or is there a blocker I should unblock?"`
+              : `Ask: "Is there a next milestone you want scoped this month?"`,
+          close: "End with one-sentence recap + who does what by when. Log the call in Meetings after.",
+        },
+      },
+    };
+  }
+
+  if (name === "web_research") {
+    const result = await runWebResearch(env, {
+      query: args.query,
+      depth: args.depth,
+      focus: args.focus,
+    });
+    return result.ok ? { ok: true, data: result } : fail(result.error || "Research failed.");
+  }
+
+  if (name === "company_pack") {
+    const pack = await companyPack(Boolean(args.refresh));
+    return { ok: true, data: pack };
   }
 
   if (name === "generate_image") {
@@ -449,7 +745,7 @@ export async function executeTool(name, rawArgs, user, env = process.env) {
   return fail(`Unknown tool ${name}`);
 }
 
-export function confirmPending(token, user) {
+export async function confirmPending(token, user, env = process.env) {
   const state = loadCrmState();
   const ai = ensureAi(state);
   const pending = ai.pending?.[token];
@@ -460,6 +756,53 @@ export function confirmPending(token, user) {
     return { ok: false, error: "Confirmation expired." };
   }
   const apply = pending.apply || {};
+  const stamp = new Date().toISOString();
+
+  if (pending.tool === "send_email") {
+    try {
+      const sent = await sendCrmEmail(env, apply);
+      const row = {
+        id: randomUUID(),
+        module: "emails",
+        data: {
+          to_addr: apply.to,
+          subject: apply.subject,
+          body: apply.text,
+          status: "sent",
+          sent_at: stamp,
+        },
+        created_at: stamp,
+        updated_at: stamp,
+      };
+      putRecord(state, row);
+      activity(state, user, `AI sent email to ${apply.to}`);
+      audit(state, { user: user.email, tool: "send_email", entity: row.id, result: "confirmed" });
+      delete ai.pending[token];
+      saveCrmState(state);
+      return { ok: true, data: { sent: true, provider: sent, record: compactRow(row) } };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Email send failed" };
+    }
+  }
+
+  if (pending.tool === "create_invoice" || pending.tool === "create_quotation") {
+    const module = pending.tool === "create_invoice" ? "invoices" : "quotations";
+    const row = {
+      id: randomUUID(),
+      module,
+      data: { ...apply },
+      created_at: stamp,
+      updated_at: stamp,
+    };
+    delete row.data.module;
+    putRecord(state, row);
+    activity(state, user, `AI created ${module === "invoices" ? "invoice" : "quotation"} for ${apply.client}`);
+    audit(state, { user: user.email, tool: pending.tool, entity: row.id, result: "confirmed" });
+    delete ai.pending[token];
+    saveCrmState(state);
+    return { ok: true, data: compactRow(row) };
+  }
+
   if (pending.tool === "update_project") {
     const row = state.records.find((r) => r.id === pending.preview?.id && r.module === "projects");
     if (!row) return { ok: false, error: "Project gone." };

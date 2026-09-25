@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { addAiProvider, deleteAiProvider, fetchAiUsage, listAiProviders, patchAiProvider } from "@/lib/aiClient";
+import { addAiProvider, deleteAiProvider, fetchAiUsage, fetchResearchKeys, listAiProviders, patchAiProvider, patchResearchKeys } from "@/lib/aiClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -15,6 +15,7 @@ export function AiKeysPage() {
   const qc = useQueryClient();
   const providers = useQuery({ queryKey: ["ai-providers"], queryFn: listAiProviders });
   const usage = useQuery({ queryKey: ["ai-usage"], queryFn: fetchAiUsage, refetchInterval: 30_000 });
+  const research = useQuery({ queryKey: ["ai-research-keys"], queryFn: fetchResearchKeys });
   const preset = providers.data?.preset;
   const [name, setName] = useState("Relay Models");
   const [base, setBase] = useState("https://api.relaymodels.com/v1");
@@ -22,6 +23,10 @@ export function AiKeysPage() {
   const [model, setModel] = useState("gpt-5.6-luna");
   const [reason, setReason] = useState("gpt-5.6-sol");
   const [err, setErr] = useState<string | null>(null);
+  const [tavily, setTavily] = useState("");
+  const [brave, setBrave] = useState("");
+  const [serper, setSerper] = useState("");
+  const [researchErr, setResearchErr] = useState<string | null>(null);
 
   const add = useMutation({
     mutationFn: addAiProvider,
@@ -34,6 +39,23 @@ export function AiKeysPage() {
     onError: (e) => setErr((e as Error).message),
   });
 
+  const saveResearch = useMutation({
+    mutationFn: () =>
+      patchResearchKeys({
+        ...(tavily.trim() ? { tavily: tavily.trim() } : {}),
+        ...(brave.trim() ? { brave: brave.trim() } : {}),
+        ...(serper.trim() ? { serper: serper.trim() } : {}),
+      }),
+    onSuccess: () => {
+      setTavily("");
+      setBrave("");
+      setSerper("");
+      setResearchErr(null);
+      void qc.invalidateQueries({ queryKey: ["ai-research-keys"] });
+    },
+    onError: (e) => setResearchErr((e as Error).message),
+  });
+
   const u = usage.data?.data;
 
   return (
@@ -41,7 +63,7 @@ export function AiKeysPage() {
       <PageHeader
         kicker="AI"
         title="AI keys & usage"
-        description="Relay Models, OpenAI, ya koi bhi OpenAI-compatible /v1 API. Limit/quota khatam ho to next key automatically use hoti hai."
+        description="Relay Models, OpenAI, ya koi bhi OpenAI-compatible /v1 API. Limit/quota khatam ho to next key automatically use hoti hai. Research keys alag se — Tavily / Brave / Serper."
         actions={
           <Link to="/agent" className="text-sm text-gold hover:underline">
             Open agent
@@ -246,6 +268,45 @@ export function AiKeysPage() {
         ))}
         {!providers.data?.data?.length ? <p className="text-sm text-paper/45">Abhi koi key nahi. Relay preset + key save karo.</p> : null}
       </div>
+
+      <Card className="grid max-w-xl gap-3 p-4">
+        <h2 className="font-semibold">Web research APIs</h2>
+        <p className="text-sm text-paper/55">{research.data?.data.note}</p>
+        <p className="text-xs text-paper/40">
+          Tavily {research.data?.data.tavily.has_key ? `on (${research.data.data.tavily.key_hint})` : "off"} · Brave{" "}
+          {research.data?.data.brave.has_key ? `on (${research.data.data.brave.key_hint})` : "off"} · Serper{" "}
+          {research.data?.data.serper.has_key ? `on (${research.data.data.serper.key_hint})` : "off"} · fallback Wikipedia + DuckDuckGo
+        </p>
+        {researchErr ? <p className="text-sm text-red-500">{researchErr}</p> : null}
+        <div className="grid gap-1">
+          <Label htmlFor="tv">Tavily key</Label>
+          <Input id="tv" type="password" autoComplete="off" value={tavily} onChange={(e) => setTavily(e.target.value)} placeholder="tvly-…" />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="br">Brave Search key</Label>
+          <Input id="br" type="password" autoComplete="off" value={brave} onChange={(e) => setBrave(e.target.value)} />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="sr">Serper key</Label>
+          <Input id="sr" type="password" autoComplete="off" value={serper} onChange={(e) => setSerper(e.target.value)} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={saveResearch.isPending || (!tavily.trim() && !brave.trim() && !serper.trim())} onClick={() => saveResearch.mutate()}>
+            Save research keys
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saveResearch.isPending}
+            onClick={() => {
+              if (!window.confirm("Clear stored Tavily / Brave / Serper keys?")) return;
+              void patchResearchKeys({ tavily: "", brave: "", serper: "" }).then(() => qc.invalidateQueries({ queryKey: ["ai-research-keys"] }));
+            }}
+          >
+            Clear
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

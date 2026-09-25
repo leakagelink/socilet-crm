@@ -48,7 +48,9 @@ export type AgentFile = {
   bytes?: number;
 };
 
-export type AgentMessage = { role: "user" | "assistant"; content: string; at?: string; files?: AgentFile[] };
+export type AgentLink = { href: string; title: string; kind?: string };
+
+export type AgentMessage = { role: "user" | "assistant"; content: string; at?: string; files?: AgentFile[]; links?: AgentLink[] };
 
 export type AiTokenBucket = {
   prompt_tokens?: number;
@@ -140,20 +142,82 @@ export async function deleteAgentSession(id: string) {
   return apiJson<{ ok: boolean }>(`/api/ai/sessions/${id}`, { method: "DELETE" });
 }
 
+export type AgentChatResult = {
+  reply: string;
+  mode?: string;
+  confirmations: ConfirmNeed[];
+  files?: AgentFile[];
+  links?: AgentLink[];
+  sessionId: string;
+};
+
 export async function sendAgentChat(
   message: string,
   sessionId?: string,
   signal?: AbortSignal,
   extra?: { model?: string; attachments?: { name: string; mime: string; text?: string; dataUrl?: string }[] },
 ) {
-  return apiJson<{ data: { reply: string; mode: string; confirmations: ConfirmNeed[]; files?: AgentFile[]; sessionId: string } }>(
-    "/api/ai/chat",
-    {
-      method: "POST",
-      body: JSON.stringify({ message, sessionId, model: extra?.model, attachments: extra?.attachments }),
-      signal,
-    },
-  );
+  return apiJson<{ data: AgentChatResult }>("/api/ai/chat", {
+    method: "POST",
+    body: JSON.stringify({ message, sessionId, model: extra?.model, attachments: extra?.attachments }),
+    signal,
+  });
+}
+
+export async function sendAgentChatStream(
+  message: string,
+  sessionId: string | undefined,
+  signal: AbortSignal | undefined,
+  extra: { model?: string; attachments?: { name: string; mime: string; text?: string; dataUrl?: string }[] },
+  onDelta: (chunk: string) => void,
+): Promise<AgentChatResult> {
+  const res = await apiFetch("/api/ai/chat/stream", {
+    method: "POST",
+    body: JSON.stringify({ message, sessionId, model: extra?.model, attachments: extra?.attachments }),
+    signal,
+  });
+  const type = res.headers.get("content-type") || "";
+  if (!type.includes("ndjson")) {
+    const raw = await res.text();
+    let parsed: { error?: string; data?: AgentChatResult } = {};
+    try {
+      parsed = raw ? JSON.parse(raw) : {};
+    } catch {
+      parsed = {};
+    }
+    if (!res.ok) throw new ApiError(parsed.error || res.statusText, res.status);
+    if (!parsed.data) throw new ApiError("Empty AI reply", res.status);
+    return parsed.data;
+  }
+  const reader = res.body?.getReader();
+  if (!reader) throw new ApiError("No stream", 502);
+  const dec = new TextDecoder();
+  let buf = "";
+  let done: AgentChatResult | null = null;
+  let streamError = "";
+  while (true) {
+    const { done: closed, value } = await reader.read();
+    if (closed) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() || "";
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) continue;
+      let row: { type?: string; text?: string; error?: string; data?: AgentChatResult };
+      try {
+        row = JSON.parse(t);
+      } catch {
+        continue;
+      }
+      if (row.type === "delta" && row.text) onDelta(row.text);
+      if (row.type === "error") streamError = row.error || "AI failed";
+      if (row.type === "done" && row.data) done = row.data;
+    }
+  }
+  if (streamError) throw new ApiError(streamError, 502);
+  if (!done) throw new ApiError("Empty AI reply", 502);
+  return done;
 }
 
 export async function fetchAiCatalog() {
@@ -224,4 +288,20 @@ export async function fetchAiProviderModels(id: string) {
 
 export async function fetchAiUsage() {
   return apiJson<{ data: AiUsageSummary }>("/api/ai/usage");
+}
+
+export type ResearchKeysStatus = {
+  tavily: { has_key: boolean; key_hint: string };
+  brave: { has_key: boolean; key_hint: string };
+  serper: { has_key: boolean; key_hint: string };
+  fallback: string[];
+  note?: string;
+};
+
+export async function fetchResearchKeys() {
+  return apiJson<{ data: ResearchKeysStatus }>("/api/ai/research");
+}
+
+export async function patchResearchKeys(body: { tavily?: string; brave?: string; serper?: string }) {
+  return apiJson<{ data: ResearchKeysStatus }>("/api/ai/research", { method: "PATCH", body: JSON.stringify(body) });
 }

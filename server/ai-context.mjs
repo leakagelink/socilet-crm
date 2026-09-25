@@ -92,12 +92,53 @@ function compactData(data) {
   return out;
 }
 
+export function recordHref(row) {
+  const m = String(row?.module || "");
+  const id = String(row?.id || "");
+  if (m === "clients" && id) return `/clients/${id}`;
+  if (m === "invoices" && id) return `/invoices/${id}/edit`;
+  if (m === "quotations" && id) return `/quotations/${id}/edit`;
+  if (m === "projects") return "/projects";
+  if (m === "tasks") return "/tasks";
+  if (m === "meetings") return "/meetings";
+  if (m === "emails") return "/emails";
+  if (m === "reminders") return "/reminders";
+  if (m === "follow_ups") return "/follow-ups";
+  if (m) return `/${m.replace(/_/g, "-")}`;
+  return "";
+}
+
 export function compactRow(row) {
+  const data = compactData(row.data);
   return {
     id: row.id,
     module: row.module,
     updated_at: row.updated_at,
-    ...compactData(row.data),
+    href: recordHref(row),
+    label: str(data.name || data.title || data.invoice_no || data.quote_no || data.subject),
+    ...data,
+  };
+}
+
+export function crmDirectory(records) {
+  const brief = (r) => ({
+    id: r.id,
+    href: recordHref(r),
+    name: str(r.data?.name || r.data?.title || r.data?.invoice_no || r.data?.quote_no),
+    status: str(r.data?.status),
+    client: str(r.data?.client),
+  });
+  const of = (m, n) =>
+    records
+      .filter((r) => r.module === m)
+      .map(brief)
+      .filter((x) => x.name)
+      .slice(0, n);
+  return {
+    clients: of("clients", 120),
+    projects: of("projects", 120),
+    invoices: of("invoices", 50),
+    quotations: of("quotations", 50),
   };
 }
 
@@ -174,6 +215,17 @@ export function findProject(records, query) {
     projects.find((r) => r.id === query) ||
     projects.find((r) => str(r.data?.name).toLowerCase() === q) ||
     projects.find((r) => hay(r).includes(q)) ||
+    null
+  );
+}
+
+export function findMeeting(records, query) {
+  const q = str(query).toLowerCase();
+  const meetings = records.filter((r) => r.module === "meetings");
+  return (
+    meetings.find((r) => r.id === query) ||
+    meetings.find((r) => str(r.data?.title).toLowerCase() === q) ||
+    meetings.find((r) => hay(r).includes(q)) ||
     null
   );
 }

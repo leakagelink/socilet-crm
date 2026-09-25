@@ -292,37 +292,117 @@ export function usageSummary() {
   };
 }
 
-export async function completeChat(env, { messages, tools, hard, model: prefer }) {
+async function readSseChat(res, onDelta) {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const data = await res.json().catch(() => ({}));
+    return data.choices?.[0]?.message || { role: "assistant", content: "" };
+  }
+  const dec = new TextDecoder();
+  let buf = "";
+  let content = "";
+  const tool_calls = [];
+  let usage;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split(/\n/);
+    buf = lines.pop() || "";
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t.startsWith("data:")) continue;
+      const payload = t.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      let json;
+      try {
+        json = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+      if (json.usage) usage = json.usage;
+      const delta = json.choices?.[0]?.delta || {};
+      if (delta.content) {
+        content += delta.content;
+        onDelta?.(delta.content);
+      }
+      for (const tc of delta.tool_calls || []) {
+        const i = Number.isInteger(tc.index) ? tc.index : tool_calls.length;
+        if (!tool_calls[i]) tool_calls[i] = { id: "", type: "function", function: { name: "", arguments: "" } };
+        if (tc.id) tool_calls[i].id = tc.id;
+        if (tc.function?.name) tool_calls[i].function.name += tc.function.name;
+        if (tc.function?.arguments) tool_calls[i].function.arguments += tc.function.arguments;
+      }
+    }
+  }
+  const message = { role: "assistant", content };
+  if (tool_calls.length) message.tool_calls = tool_calls.filter((c) => c.function?.name);
+  return { message, usage };
+}
+
+export async function completeChat(env, { messages, tools, hard, model: prefer, onDelta }) {
   const list = readyProviders(env);
   if (!list.length) return { error: "no_key" };
   const want = String(prefer || "").trim();
   let last = "All AI APIs failed or hit their limit.";
   for (const p of list) {
     const model = want || (hard ? p.reason_model : p.model);
-    const body = { model, messages, temperature: 0.2 };
+    const stream = typeof onDelta === "function";
+    const body = { model, messages, temperature: 0.2, stream };
     if (tools?.length) {
       body.tools = tools;
       body.tool_choice = "auto";
     }
     let res;
-    let data = {};
     try {
       res = await fetch(`${p.base_url}/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${p.key}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      data = await res.json().catch(() => ({}));
     } catch (err) {
       last = err instanceof Error ? err.message : "Network error";
       markProviderFail(p.id, 500, last);
       continue;
     }
     if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
       last = data.error?.message || `LLM HTTP ${res.status} (${p.name} · ${model})`;
+      if (stream && (res.status === 400 || res.status === 404 || res.status === 422)) {
+        try {
+          const retry = await fetch(`${p.base_url}/chat/completions`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${p.key}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ ...body, stream: false }),
+          });
+          const data2 = await retry.json().catch(() => ({}));
+          if (retry.ok) {
+            recordUsage(p.id, data2.usage, model);
+            const message = data2.choices?.[0]?.message || { role: "assistant", content: "" };
+            if (message.content) onDelta?.(String(message.content));
+            return {
+              message,
+              usage: data2.usage,
+              provider: { id: p.id, name: p.name, model, base_url: p.base_url },
+            };
+          }
+        } catch {
+          /* next provider */
+        }
+      }
       markProviderFail(p.id, res.status, last);
       continue;
     }
+    if (stream) {
+      const parsed = await readSseChat(res, onDelta);
+      recordUsage(p.id, parsed.usage, model);
+      return {
+        message: parsed.message || { role: "assistant", content: "" },
+        usage: parsed.usage,
+        provider: { id: p.id, name: p.name, model, base_url: p.base_url },
+      };
+    }
+    const data = await res.json().catch(() => ({}));
     recordUsage(p.id, data.usage, model);
     return {
       message: data.choices?.[0]?.message || { role: "assistant", content: "" },

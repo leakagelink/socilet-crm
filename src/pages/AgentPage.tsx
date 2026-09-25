@@ -42,9 +42,10 @@ import {
   pinAgentSession,
   renameAgentSession,
   saveBlobFile,
-  sendAgentChat,
+  sendAgentChatStream,
   downloadAgentFile,
   type AgentFile,
+  type AgentLink,
   type AgentMessage,
   type AgentSessionMeta,
   type ConfirmNeed,
@@ -56,23 +57,24 @@ const STARTERS = [
   { q: "Aaj kis pe focus karun?", h: "Priority" },
   { q: "Kaunse clients risk pe hain?", h: "Clients" },
   { q: "Pending payments batao", h: "Cash" },
-  { q: "Kaunse projects stall ho gaye?", h: "Projects" },
+  { q: "Client ko follow-up call script do", h: "Call" },
+  { q: "Quote draft banao confirm ke sath", h: "Quote" },
+  { q: "Client ko email draft karo", h: "Email" },
+  { q: "GST e-invoice latest rules research karo, sources ke sath", h: "Research" },
   { q: "Client proposal ka PDF banao", h: "PDF" },
-  { q: "Cream gold poster image banao", h: "Image" },
 ];
 
 const TOOL_HINTS = [
+  "Web research",
   "Daily brief",
-  "CRM search",
-  "PDF / Word / CSV",
-  "Images & posters",
-  "Create task",
-  "Reminders",
-  "Remember",
+  "Email / quote / invoice",
+  "Call script",
+  "Meeting notes",
+  "PDF Hindi",
 ];
 
 type Pane = "chats" | "thread" | "pulse";
-type ChatTurn = AgentMessage & { confirmations?: ConfirmNeed[]; files?: AgentFile[] };
+type ChatTurn = AgentMessage & { confirmations?: ConfirmNeed[]; files?: AgentFile[]; links?: AgentLink[] };
 
 function when(iso?: string) {
   if (!iso) return "";
@@ -84,6 +86,83 @@ function when(iso?: string) {
     return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
   }
   return d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function AgentReply({ text }: { text: string }) {
+  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  return (
+    <div className="whitespace-pre-wrap">
+      {parts.map((p, i) => {
+        const m = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(p);
+        if (!m) return <span key={i}>{p}</span>;
+        const href = m[2];
+        if (href.startsWith("/")) {
+          return (
+            <Link key={i} to={href} className="font-medium text-gold underline underline-offset-2">
+              {m[1]}
+            </Link>
+          );
+        }
+        if (/^https?:/i.test(href)) {
+          return (
+            <a key={i} href={href} target="_blank" rel="noreferrer" className="font-medium text-gold underline underline-offset-2">
+              {m[1]}
+            </a>
+          );
+        }
+        return <span key={i}>{p}</span>;
+      })}
+    </div>
+  );
+}
+
+function RecordCards({ links }: { links?: AgentLink[] }) {
+  if (!links?.length) return null;
+  const seen = new Set<string>();
+  const items = links
+    .filter((l) => {
+      if ((!l.href.startsWith("/") && !/^https?:\/\//i.test(l.href)) || seen.has(l.href)) return false;
+      seen.add(l.href);
+      return true;
+    })
+    .slice(0, 10);
+  if (!items.length) return null;
+  const cardClass =
+    "flex items-center justify-between rounded-xl border border-gold/25 bg-gold/10 px-3 py-2 text-sm text-[#0b1624] hover:border-gold/50";
+  return (
+    <div className="mt-3 grid gap-2">
+      {items.map((l) =>
+        l.href.startsWith("/") ? (
+          <Link key={l.href} to={l.href} className={cardClass}>
+            <span className="truncate font-medium">{l.title}</span>
+            <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wider text-paper/40">{l.kind || "open"}</span>
+          </Link>
+        ) : (
+          <a key={l.href} href={l.href} target="_blank" rel="noreferrer" className={cardClass}>
+            <span className="truncate font-medium">{l.title}</span>
+            <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wider text-paper/40">{l.kind || "source"}</span>
+          </a>
+        ),
+      )}
+    </div>
+  );
+}
+
+function ConfirmPreview({ preview }: { preview: Record<string, unknown> }) {
+  const rows = Object.entries(preview).filter(([, v]) => v != null && v !== "" && typeof v !== "object");
+  if (!rows.length) {
+    return <pre className="mt-1 overflow-x-auto text-[11px]">{JSON.stringify(preview, null, 2)}</pre>;
+  }
+  return (
+    <dl className="mt-1 grid gap-1 text-[12px]">
+      {rows.slice(0, 12).map(([k, v]) => (
+        <div key={k} className="grid grid-cols-[7rem_1fr] gap-2">
+          <dt className="text-paper/45">{k.replace(/_/g, " ")}</dt>
+          <dd className="break-words font-medium">{String(v)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 type PendingAttach = {
@@ -158,6 +237,9 @@ export function AgentPage() {
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [pending, setPending] = useState<PendingAttach[]>([]);
   const [dropOn, setDropOn] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [aborted, setAborted] = useState(false);
   const [model, setModel] = useState(() => {
     try {
       return localStorage.getItem(MODEL_KEY) || "";
@@ -196,37 +278,7 @@ export function AgentPage() {
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
-  }, [turns.length]);
-
-  const chat = useMutation({
-    mutationFn: async (message: string) => {
-      abortRef.current?.abort();
-      const ac = new AbortController();
-      abortRef.current = ac;
-      return sendAgentChat(message, sessionId || undefined, ac.signal, {
-        model: model || undefined,
-        attachments: pending.map((p) => ({ name: p.name, mime: p.mime, text: p.text, dataUrl: p.dataUrl })),
-      });
-    },
-    onSuccess: (res, message) => {
-      setSessionId(res.data.sessionId);
-      setTurns((prev) => [
-        ...prev,
-        { role: "user", content: message, at: new Date().toISOString() },
-        { role: "assistant", content: res.data.reply, confirmations: res.data.confirmations, files: res.data.files, at: new Date().toISOString() },
-      ]);
-      setPane("thread");
-      setPending([]);
-      void qc.invalidateQueries({ queryKey: ["ai-sessions"] });
-      void qc.invalidateQueries({ queryKey: ["ai-brief"] });
-      void qc.invalidateQueries({ queryKey: ["ai-files"] });
-      void qc.invalidateQueries({ queryKey: ["ai-status"] });
-      void qc.invalidateQueries({ queryKey: ["ai-catalog"] });
-    },
-    onSettled: () => {
-      abortRef.current = null;
-    },
-  });
+  }, [turns]);
 
   const makeSession = useMutation({
     mutationFn: createAgentSession,
@@ -260,7 +312,12 @@ export function AgentPage() {
   });
   const confirm = useMutation({
     mutationFn: confirmAgentAction,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["ai-brief"] }),
+    onSuccess: (_r, token) => {
+      setTurns((prev) =>
+        prev.map((t) => ({ ...t, confirmations: t.confirmations?.filter((c) => c.token !== token) })),
+      );
+      void qc.invalidateQueries({ queryKey: ["ai-brief"] });
+    },
   });
 
   const list = sessions.data?.data ?? [];
@@ -272,14 +329,69 @@ export function AgentPage() {
   const active = list.find((s) => s.id === sessionId);
   const snap = brief.data?.data;
   const lastUser = [...turns].reverse().find((t) => t.role === "user");
-  const aborted = chat.isError && (chat.error as { name?: string })?.name === "AbortError";
 
-  function send(raw: string) {
+  async function send(raw: string) {
     const msg = raw.trim();
-    if ((!msg && !pending.length) || chat.isPending) return;
+    if ((!msg && !pending.length) || sending) return;
+    const text = msg || "Please review the attached files.";
+    const at = new Date().toISOString();
+    const attachments = pending.map((p) => ({ name: p.name, mime: p.mime, text: p.text, dataUrl: p.dataUrl }));
     setDraft("");
     setEditIdx(null);
-    chat.mutate(msg || "Please review the attached files.");
+    setChatError(null);
+    setAborted(false);
+    setPending([]);
+    setPane("thread");
+    setTurns((prev) => [...prev, { role: "user", content: text, at }, { role: "assistant", content: "", at }]);
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setSending(true);
+    try {
+      const data = await sendAgentChatStream(text, sessionId || undefined, ac.signal, { model: model || undefined, attachments }, (chunk) => {
+        setTurns((prev) => {
+          const copy = [...prev];
+          const last = copy[copy.length - 1];
+          if (last?.role === "assistant") copy[copy.length - 1] = { ...last, content: last.content + chunk };
+          return copy;
+        });
+      });
+      setSessionId(data.sessionId);
+      setTurns((prev) => {
+        const copy = [...prev];
+        const last = copy[copy.length - 1];
+        if (last?.role === "assistant") {
+          copy[copy.length - 1] = {
+            ...last,
+            content: data.reply,
+            confirmations: data.confirmations,
+            files: data.files,
+            links: data.links,
+          };
+        }
+        return copy;
+      });
+      void qc.invalidateQueries({ queryKey: ["ai-sessions"] });
+      void qc.invalidateQueries({ queryKey: ["ai-brief"] });
+      void qc.invalidateQueries({ queryKey: ["ai-files"] });
+      void qc.invalidateQueries({ queryKey: ["ai-status"] });
+      void qc.invalidateQueries({ queryKey: ["ai-catalog"] });
+    } catch (err) {
+      if ((err as { name?: string })?.name === "AbortError") {
+        setAborted(true);
+        setTurns((prev) => {
+          const copy = [...prev];
+          const last = copy[copy.length - 1];
+          if (last?.role === "assistant" && !last.content) copy.pop();
+          return copy;
+        });
+        return;
+      }
+      setChatError(err instanceof Error ? err.message : "AI failed");
+    } finally {
+      setSending(false);
+      abortRef.current = null;
+    }
   }
 
   function stop() {
@@ -629,7 +741,7 @@ export function AgentPage() {
                         </div>
                       </form>
                     ) : (
-                      <div className="whitespace-pre-wrap">{t.content}</div>
+                      <div className="whitespace-pre-wrap">{t.role === "assistant" ? <AgentReply text={t.content} /> : t.content}</div>
                     )}
                     <div
                       className={cn(
@@ -663,13 +775,14 @@ export function AgentPage() {
                     </div>
                     {t.confirmations?.map((c) => (
                       <div key={c.token} className="mt-2 rounded-xl border border-amber-400/40 bg-amber-50 p-2 text-xs text-[#0b1624]">
-                        Confirm CRM write
-                        <pre className="mt-1 overflow-x-auto">{JSON.stringify(c.preview, null, 2)}</pre>
+                        {c.warning || "Confirm CRM write"}
+                        <ConfirmPreview preview={c.preview} />
                         <Button size="sm" className="mt-2" disabled={confirm.isPending} onClick={() => confirm.mutate(c.token)}>
                           Confirm
                         </Button>
                       </div>
                     ))}
+                    <RecordCards links={t.links} />
                     {t.files?.length ? (
                       <div className="mt-3 grid gap-2">
                         {t.files.map((f) => (
@@ -680,7 +793,7 @@ export function AgentPage() {
                   </div>
                 </article>
               ))}
-              {chat.isPending ? (
+              {sending ? (
                 <div className="flex items-center gap-2 text-sm text-gold">
                   <span className="inline-flex gap-1">
                     <i className="h-1.5 w-1.5 animate-bounce rounded-full bg-gold [animation-delay:-0.2s]" />
@@ -690,7 +803,7 @@ export function AgentPage() {
                   CRM padh raha hai
                 </div>
               ) : null}
-              {chat.isError && !aborted ? <p className="text-sm text-red-500">{(chat.error as Error).message}</p> : null}
+              {chatError && !aborted ? <p className="text-sm text-red-500">{chatError}</p> : null}
             </div>
           </div>
 
@@ -769,7 +882,7 @@ export function AgentPage() {
                   </IconBtn>
                 ) : null}
                 <span className="ml-auto" />
-                {chat.isPending ? (
+                {sending ? (
                   <Button type="button" size="icon" variant="outline" className="h-10 w-10 rounded-full" onClick={stop} aria-label="Stop">
                     <Square className="h-3.5 w-3.5" />
                   </Button>

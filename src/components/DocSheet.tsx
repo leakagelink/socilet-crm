@@ -76,7 +76,7 @@ export function DocSheet({ doc, firm }: { doc: DocView; firm: FirmProfile }) {
       <article className="overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4 bg-[#0b1624] px-8 py-6 text-white">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Socilet" className="h-14 w-auto max-w-[11rem] rounded-md bg-white object-contain p-1" />
+            <img src={logo} alt="Socilet" className="h-14 w-auto max-w-[11rem] object-contain brightness-0 invert" />
             <div>
               <div className="font-display text-2xl">{firm.legal_name || "Socilet"}</div>
               <FirmBlock firm={firm} light />
@@ -138,7 +138,7 @@ export function DocSheet({ doc, firm }: { doc: DocView; firm: FirmProfile }) {
       <article className="rounded-2xl bg-[#0a0d14] p-8 text-[#f3eee4] shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#e8c36a]/30 pb-6">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Socilet" className="h-14 w-auto max-w-[11rem] rounded-md bg-white object-contain p-1 ring-1 ring-[#e8c36a]/40" />
+            <img src={logo} alt="Socilet" className="h-14 w-auto max-w-[11rem] object-contain brightness-0 invert" />
             <div>
               <div className="font-display text-2xl text-[#e8c36a]">{firm.legal_name || "Socilet"}</div>
               <FirmBlock firm={firm} light />

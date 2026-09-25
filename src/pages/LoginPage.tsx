@@ -205,7 +205,7 @@ export function DeniedPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="max-w-md">
-        <BrandLogo className="mb-4 h-16 w-auto max-w-[12rem] rounded-xl" />
+        <BrandLogo className="mb-4 h-16 w-auto max-w-[12rem]" />
         <h1 className="font-display text-2xl">Access denied</h1>
         <p className="mt-2 text-sm text-paper/70">This page is not in your role. Ask an admin if you need access.</p>
         <Button

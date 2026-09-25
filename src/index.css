@@ -190,7 +190,8 @@ input, textarea, select, button { font: inherit; }
 }
 
 .brand-mark {
-  animation: mark-glow 4s ease-in-out infinite;
+  background: transparent;
+  box-shadow: none;
 }
 
 .gold-rule {

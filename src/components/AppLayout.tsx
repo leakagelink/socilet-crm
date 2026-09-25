@@ -49,6 +49,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { restoreMailboxesToServer } from "@/lib/mailboxStore";
+import { scheduleMorningBrief } from "@/lib/alerts";
 import { countUnseenMail } from "@/lib/unreadMail";
 import { cn } from "@/lib/utils";
 import { canAccess, type RoleName } from "@/lib/roles";
@@ -369,6 +370,7 @@ export function AppLayout() {
   const [dockOpen, setDockOpen] = useQuickDockOpen();
   useEffect(() => {
     void restoreMailboxesToServer();
+    void scheduleMorningBrief();
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       void Notification.requestPermission();
     }

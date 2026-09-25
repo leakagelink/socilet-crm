@@ -230,6 +230,63 @@ export async function syncNotifications() {
   return listRecords("notifications");
 }
 
+const BRIEF_NOTE_ID = 91001;
+let webBriefTimer: number | undefined;
+
+function msUntilHour(hour: number) {
+  const n = new Date();
+  const t = new Date(n);
+  t.setHours(hour, 0, 0, 0);
+  if (t.getTime() <= n.getTime()) t.setDate(t.getDate() + 1);
+  return t.getTime() - n.getTime();
+}
+
+export async function scheduleMorningBrief() {
+  try {
+    const { fetchBrief } = await import("@/lib/aiClient");
+    const brief = await fetchBrief();
+    const top = (brief.data.attention || []).slice(0, 4);
+    const body = top.map((t) => t.title).join(" · ") || "CRM clear — no high-impact items.";
+    const title = "Socilet OS · aaj";
+
+    try {
+      const { Capacitor } = await import("@capacitor/core");
+      if (Capacitor.isNativePlatform()) {
+        const { LocalNotifications } = await import("@capacitor/local-notifications");
+        const perm = await LocalNotifications.requestPermissions();
+        if (perm.display === "granted") {
+          await LocalNotifications.cancel({ notifications: [{ id: BRIEF_NOTE_ID }] });
+          await LocalNotifications.schedule({
+            notifications: [
+              {
+                id: BRIEF_NOTE_ID,
+                title,
+                body,
+                schedule: { on: { hour: 9, minute: 0 }, repeats: true, allowWhileIdle: true },
+              },
+            ],
+          });
+        }
+      }
+    } catch {
+      /* plugin optional */
+    }
+
+    if (typeof Notification !== "undefined") {
+      if (Notification.permission === "default") await Notification.requestPermission();
+      if (Notification.permission === "granted") {
+        if (webBriefTimer) window.clearTimeout(webBriefTimer);
+        webBriefTimer = window.setTimeout(() => {
+          new Notification(title, { body });
+          void scheduleMorningBrief();
+        }, Math.min(msUntilHour(9), 2147483647));
+      }
+    }
+  } catch {
+    /* brief optional until logged in / AI ready */
+  }
+}
+
 export async function markNotificationRead(row: RecordRow) {
   await updateRecord(row.id, { ...row.data, read: true });
 }

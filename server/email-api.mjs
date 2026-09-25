@@ -117,6 +117,23 @@ function getMailbox(env, id) {
   return rows[0] || null;
 }
 
+export async function sendCrmEmail(env, { to, subject, text, mailboxId }) {
+  const box = getMailbox(env, mailboxId || "");
+  if (!box) throw new Error("No mailbox. Add a Resend key in Emails first.");
+  const dest = String(to || "").trim();
+  const sub = String(subject || "").trim();
+  const body = String(text || "").trim();
+  if (!dest.includes("@") || !sub || !body) throw new Error("to, subject, and body are required");
+  const html = `<p>${escapeHtml(body).replace(/\n/g, "<br/>")}</p>`;
+  return resendWithKey(box.apiKey, "POST", "/emails", {
+    from: box.from,
+    to: [dest],
+    subject: sub,
+    text: body,
+    html,
+  });
+}
+
 function mailAttachments(raw) {
   if (!Array.isArray(raw)) return [];
   const out = [];

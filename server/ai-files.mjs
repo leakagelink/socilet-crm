@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { persistFiles } from "./persist.mjs";
 import { completeImage } from "./ai-providers.mjs";
 
@@ -170,7 +171,7 @@ function wrapLines(text, width = 92) {
   return out.slice(0, 1200);
 }
 
-export function buildPdf(title, body) {
+export function buildPdfLatin(title, body) {
   const header = winAnsi(title || "Socilet document");
   const lines = wrapLines(winAnsi(body || ""), 92);
   const perPage = 46;
@@ -212,6 +213,63 @@ export function buildPdf(title, body) {
   for (let i = 1; i <= maxId; i += 1) pdf += `${String(xref[i]).padStart(10, "0")} 00000 n \n`;
   pdf += `trailer << /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF`;
   return Buffer.from(pdf, "latin1");
+}
+
+function hasDevanagari(s) {
+  return /[\u0900-\u097F]/.test(String(s || ""));
+}
+
+export async function buildPdf(title, body) {
+  if (!hasDevanagari(title) && !hasDevanagari(body)) return buildPdfLatin(title, body);
+  const fontPath = join(dirname(fileURLToPath(import.meta.url)), "fonts", "NotoSansDevanagari-Regular.ttf");
+  if (!existsSync(fontPath)) return buildPdfLatin(title, body);
+  try {
+    const { PDFDocument, rgb } = await import("pdf-lib");
+    const fontkitMod = await import("@pdf-lib/fontkit");
+    const fontkit = fontkitMod.default || fontkitMod;
+    const pdf = await PDFDocument.create();
+    pdf.registerFontkit(fontkit);
+    const font = await pdf.embedFont(readFileSync(fontPath), { subset: true });
+    const header = String(title || "Socilet document");
+    const paragraphs = String(body || "").split(/\r?\n/);
+    let page = pdf.addPage([612, 792]);
+    let y = 742;
+    const left = 50;
+    const maxW = 512;
+    const drawWrapped = (text, size) => {
+      let line = "";
+      const flush = () => {
+        if (!line) return;
+        if (y < 56) {
+          page = pdf.addPage([612, 792]);
+          y = 742;
+        }
+        page.drawText(line, { x: left, y, size, font, color: rgb(0.04, 0.09, 0.14) });
+        y -= size + 4;
+        line = "";
+      };
+      for (const ch of [...String(text || "")]) {
+        const next = line + ch;
+        if (line && font.widthOfTextAtSize(next, size) > maxW) {
+          flush();
+          line = ch;
+        } else line = next;
+      }
+      flush();
+    };
+    drawWrapped(header, 16);
+    y -= 12;
+    for (const para of paragraphs) {
+      if (!para) {
+        y -= 10;
+        continue;
+      }
+      drawWrapped(para, 11);
+    }
+    return Buffer.from(await pdf.save());
+  } catch {
+    return buildPdfLatin(title, body);
+  }
 }
 
 export function buildDocx(title, body) {
@@ -334,12 +392,12 @@ export function readGeneratedFile(userId, id) {
   return { ...row, buffer: readFileSync(path) };
 }
 
-export function documentBuffer(format, title, body) {
+export async function documentBuffer(format, title, body) {
   const raw = String(format || "pdf").toLowerCase().replace(/^\./, "");
   const fmt = raw === "word" || raw === "doc" ? "docx" : raw === "markdown" ? "md" : raw === "xls" || raw === "xlsx" ? "csv" : raw;
   const t = String(title || "Socilet document").slice(0, 120);
   const b = String(body || "").slice(0, MAX_BODY);
-  if (fmt === "pdf") return { ext: "pdf", mime: MIME.pdf, buffer: buildPdf(t, b), kind: "pdf" };
+  if (fmt === "pdf") return { ext: "pdf", mime: MIME.pdf, buffer: await buildPdf(t, b), kind: "pdf" };
   if (fmt === "docx") return { ext: "docx", mime: MIME.docx, buffer: buildDocx(t, b), kind: "docx" };
   if (fmt === "html") return { ext: "html", mime: MIME.html, buffer: Buffer.from(buildHtml(t, b)), kind: "html" };
   if (fmt === "csv") return { ext: "csv", mime: MIME.csv, buffer: Buffer.from(b), kind: "csv" };
