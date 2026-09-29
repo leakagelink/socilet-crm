@@ -370,6 +370,7 @@ export function AppLayout() {
   const loc = useLocation();
   const { immersive } = useAgentImmersive();
   const agentFull = loc.pathname === "/agent" && immersive;
+  const mailFull = loc.pathname === "/emails";
   const [open, setOpen] = useState(false);
   const [dockOpen, setDockOpen] = useQuickDockOpen();
   useEffect(() => {
@@ -383,7 +384,11 @@ export function AppLayout() {
     <div
       className={cn(
         "min-h-full min-w-0",
-        agentFull ? "flex h-dvh max-h-dvh flex-col overflow-hidden" : "lg:grid lg:grid-cols-[248px_1fr]",
+        agentFull
+          ? "flex h-dvh max-h-dvh flex-col overflow-hidden"
+          : mailFull
+            ? "flex min-h-dvh flex-col overflow-hidden lg:grid lg:grid-cols-[248px_1fr] lg:h-dvh lg:max-h-dvh"
+            : "lg:grid lg:grid-cols-[248px_1fr]",
       )}
     >
       {agentFull ? null : (
@@ -421,7 +426,7 @@ export function AppLayout() {
         </div>
       </aside>
       )}
-      <div className={cn("flex min-h-full min-w-0 flex-col", loc.pathname === "/agent" && "h-dvh max-h-dvh overflow-hidden lg:h-screen lg:max-h-screen")}>
+      <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", (loc.pathname === "/agent" || mailFull) && "h-dvh max-h-dvh overflow-hidden lg:h-full lg:max-h-full")}>
         {agentFull ? null : (
         <header className="sticky top-0 z-30 flex min-h-12 min-w-0 items-center justify-between gap-2 border-b border-gold/15 bg-panel/90 pb-2.5 pl-[max(0.75rem,var(--sal))] pr-[max(0.75rem,var(--sar))] pt-[calc(var(--sat)+0.65rem)] backdrop-blur-md sm:gap-3 sm:pb-3 sm:pl-4 sm:pr-4 sm:pt-[calc(var(--sat)+0.75rem)]">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -485,7 +490,7 @@ export function AppLayout() {
         <main
           key={loc.pathname}
           className={cn(
-            loc.pathname === "/agent"
+            loc.pathname === "/agent" || mailFull
               ? agentFull
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden p-0"
                 : "flex min-h-0 flex-1 flex-col overflow-hidden p-2 pb-[calc(4.35rem+var(--sab))] sm:p-3 lg:p-4 lg:pb-[max(1rem,var(--sab))]"

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Inbox, PenLine, Send, Settings2 } from "lucide-react";
+import { ArrowLeft, CircleAlert, Inbox, Paperclip, PenLine, Send, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -11,20 +11,15 @@ import { insertRecord } from "@/lib/db";
 import { emailApi, mailboxQuery, type Mailbox } from "@/lib/emailClient";
 import { markMailSeen, mailIsUnseen } from "@/lib/unreadMail";
 import { FileAttachments } from "@/components/FileAttachments";
+import { MailBody, StatusChip } from "@/components/MailBody";
 import type { Attachment } from "@/lib/attachments";
+import { addrLine, isMailFailed, type MailDetail, type MailListItem } from "@/lib/mailView";
 import { cn } from "@/lib/utils";
 import { Link, useSearchParams } from "react-router-dom";
 
-type BoxItem = {
-  id: string;
-  from?: string;
-  to?: string[] | string;
-  subject?: string;
-  created_at?: string;
-};
-
 const composeSchema = z.object({
   to: z.string().trim().min(3).refine((v) => v.includes("@"), "Enter an email"),
+  cc: z.string().trim().optional(),
   subject: z.string().trim().min(1, "Required"),
   body: z.string().trim().min(1, "Required"),
 });
@@ -41,11 +36,6 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return emailApi<T>(path, init);
 }
 
-function addr(v: string[] | string | undefined) {
-  if (Array.isArray(v)) return v.join(", ");
-  return v || "";
-}
-
 function q(mailboxId: string, path: string) {
   return mailboxQuery(mailboxId, path);
 }
@@ -54,13 +44,14 @@ function when(iso?: string) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
-  return d.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  const same = d.toDateString() === new Date().toDateString();
+  return d.toLocaleString("en-IN", same ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 export function EmailsPage() {
   const qc = useQueryClient();
   const [params] = useSearchParams();
-  const [tab, setTab] = useState<"inbox" | "sent">("inbox");
+  const [tab, setTab] = useState<"inbox" | "sent" | "failed">("inbox");
   const [openId, setOpenId] = useState<string | null>(null);
   const [mailboxId, setMailboxId] = useState("");
   const [composing, setComposing] = useState(false);
@@ -76,37 +67,37 @@ export function EmailsPage() {
   const activeId = mailboxId || mailboxes[0]?.id || "";
   const active = mailboxes.find((m) => m.id === activeId) ?? mailboxes[0];
   const accent = accentFor(active?.id || "x");
+  const folder = tab === "inbox" ? "inbox" : "sent";
 
   const inbox = useQuery({
     queryKey: ["email-inbox", activeId],
-    queryFn: () => api<{ data?: BoxItem[] }>(q(activeId, "/api/email/inbox")),
+    queryFn: () => api<{ data?: MailListItem[] }>(q(activeId, "/api/email/inbox")),
     refetchInterval: 30_000,
-    enabled: Boolean(activeId) && tab === "inbox",
+    enabled: Boolean(activeId),
   });
   const sent = useQuery({
     queryKey: ["email-sent", activeId],
-    queryFn: () => api<{ data?: BoxItem[] }>(q(activeId, "/api/email/sent")),
+    queryFn: () => api<{ data?: MailListItem[] }>(q(activeId, "/api/email/sent")),
     refetchInterval: 30_000,
-    enabled: Boolean(activeId) && tab === "sent",
+    enabled: Boolean(activeId),
   });
   const detail = useQuery({
-    queryKey: ["email-detail", tab, openId, activeId],
+    queryKey: ["email-detail", folder, openId, activeId],
     queryFn: () =>
-      api<{ html?: string; text?: string; from?: string; to?: string[]; subject?: string }>(
-        q(activeId, tab === "inbox" ? `/api/email/received/${openId}` : `/api/email/sent/${openId}`),
-      ),
-    enabled: Boolean(openId && activeId),
+      api<MailDetail>(q(activeId, folder === "inbox" ? `/api/email/received/${openId}` : `/api/email/sent/${openId}`)),
+    enabled: Boolean(openId && activeId && !composing),
   });
 
   const form = useForm({
     resolver: zodResolver(composeSchema),
-    defaultValues: { to: "", subject: "", body: "" },
+    defaultValues: { to: "", cc: "", subject: "", body: "" },
   });
 
   useEffect(() => {
     if (params.get("compose") !== "1") return;
     form.reset({
       to: params.get("to") || "",
+      cc: "",
       subject: params.get("subject") || "",
       body: params.get("body") || "",
     });
@@ -118,12 +109,13 @@ export function EmailsPage() {
 
   const send = useMutation({
     mutationFn: async (v: z.infer<typeof composeSchema>) => {
-      const data = await api<{ id?: string }>("/api/email/send", {
+      const data = await api<{ id?: string; status?: string; last_event?: string; error?: string }>("/api/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mailboxId: activeId,
           to: v.to,
+          cc: v.cc,
           subject: v.subject,
           text: v.body,
           attachments: files.map((f) => ({ name: f.name, mime: f.mime, data: f.data })),
@@ -133,7 +125,7 @@ export function EmailsPage() {
         to_addr: v.to,
         subject: v.subject,
         body: v.body,
-        status: "sent",
+        status: data.status === "failed" ? "failed" : "sent",
         sent_at: new Date().toISOString(),
         resend_id: data.id ?? "",
         mailbox: active?.label ?? "",
@@ -145,20 +137,38 @@ export function EmailsPage() {
       form.reset();
       setFiles([]);
       setComposing(false);
+      setTab("sent");
+      void qc.invalidateQueries({ queryKey: ["email-sent", activeId] });
+    },
+    onError: async (_e, v) => {
+      try {
+        await insertRecord("emails", {
+          to_addr: v.to,
+          subject: v.subject,
+          body: v.body,
+          status: "failed",
+          sent_at: new Date().toISOString(),
+          resend_id: "",
+          mailbox: active?.label ?? "",
+          attachments: files.map((f) => f.name).join(", "),
+        });
+      } catch {
+        /* ignore */
+      }
       void qc.invalidateQueries({ queryKey: ["email-sent", activeId] });
     },
   });
 
-  const rows = tab === "inbox" ? inbox.data?.data ?? [] : sent.data?.data ?? [];
+  const source = tab === "inbox" ? inbox.data?.data ?? [] : sent.data?.data ?? [];
+  const rows = useMemo(
+    () => (tab === "failed" ? source.filter((r) => isMailFailed(r)) : source),
+    [tab, source],
+  );
   const boxQ = tab === "inbox" ? inbox : sent;
-  const preview = useMemo(() => {
-    const t = detail.data?.text?.trim();
-    if (t) return t;
-    return detail.data?.html?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "";
-  }, [detail.data]);
+  const failedCount = (sent.data?.data ?? []).filter((r) => isMailFailed(r)).length;
 
   function startCompose() {
-    form.reset({ to: "", subject: "", body: "" });
+    form.reset({ to: "", cc: "", subject: "", body: "" });
     setFiles([]);
     setOpenId(null);
     setComposing(true);
@@ -181,20 +191,18 @@ export function EmailsPage() {
   }
 
   return (
-    <div className="flex w-full min-w-0 max-w-full flex-col gap-3">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+    <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-2 sm:gap-3">
+      <div className="flex min-w-0 shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.2em] text-gold/80">Mail</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Inboxes</h1>
-          <p className="mt-0.5 text-sm text-paper/55">
-            Connected accounts yahan dikhte hain. Naya box ya delete sirf Email setup se.
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Inbox</h1>
+          <p className="mt-0.5 hidden text-sm text-paper/55 sm:block">HTML, photos, documents, and send status — same on phone.</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
           <Button className="flex-1 sm:flex-none" variant="outline" asChild>
             <Link to="/email-setup">
               <Settings2 className="h-4 w-4" />
-              Email setup
+              Setup
             </Link>
           </Button>
           <Button className="flex-1 sm:flex-none" disabled={!activeId} onClick={startCompose}>
@@ -205,10 +213,10 @@ export function EmailsPage() {
       </div>
 
       {boxes.isError ? (
-        <Card className="border-red-900/50 text-sm text-red-300">{(boxes.error as Error).message}</Card>
+        <Card className="shrink-0 border-red-900/50 text-sm text-red-300">{(boxes.error as Error).message}</Card>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex min-w-0 shrink-0 gap-2 overflow-x-auto pb-0.5">
         {mailboxes.map((m) => {
           const on = m.id === activeId;
           const c = accentFor(m.id);
@@ -218,13 +226,13 @@ export function EmailsPage() {
               type="button"
               onClick={() => pickBox(m.id)}
               className={cn(
-                "min-w-0 rounded-2xl border px-3 py-2.5 text-left transition",
+                "min-w-[9.5rem] shrink-0 rounded-2xl border px-3 py-2 text-left transition",
                 on ? "border-transparent bg-panel shadow-lg" : "border-line/80 bg-ink/40 hover:border-gold/30",
               )}
               style={on ? { boxShadow: `inset 3px 0 0 ${c}` } : undefined}
             >
               <div className="truncate text-sm font-semibold">{m.label}</div>
-              <div className="truncate text-[11px] text-paper/45">{m.domain}</div>
+              <div className="truncate text-[11px] text-paper/45">{m.from}</div>
             </button>
           );
         })}
@@ -233,48 +241,50 @@ export function EmailsPage() {
             Koi mailbox nahi.{" "}
             <Link to="/email-setup" className="text-gold">
               Email setup
-            </Link>{" "}
-            se connect karo.
+            </Link>
           </div>
         ) : null}
       </div>
 
-      {active ? (
-        <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-line/70 bg-panel/50 px-3 py-2 text-xs text-paper/55 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <span className="min-w-0 break-words">
-            Active <span className="font-medium text-paper">{active.label}</span>
-            <span className="mx-1 text-line">·</span>
-            <span className="break-all">{active.from}</span>
-          </span>
-        </div>
-      ) : null}
-
       <div
-        className="grid min-w-0 overflow-hidden rounded-2xl border border-line bg-panel/60 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
+        className="grid min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-line bg-panel/60 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
         style={{ borderTopColor: accent }}
       >
         <section
           className={cn(
-            "flex min-h-0 min-w-0 flex-col border-b border-line lg:min-h-[28rem] lg:border-b-0 lg:border-r",
+            "flex min-h-0 min-w-0 flex-col border-b border-line lg:border-b-0 lg:border-r",
             pane === "read" ? "hidden lg:flex" : "flex",
           )}
         >
           <div className="grid grid-cols-3 gap-1 border-b border-line p-2">
-            <Button size="sm" variant={tab === "inbox" ? "default" : "ghost"} className="w-full min-w-0 px-1" onClick={() => { setTab("inbox"); setOpenId(null); }}>
-              <Inbox className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Inbox</span>
-            </Button>
-            <Button size="sm" variant={tab === "sent" ? "default" : "ghost"} className="w-full min-w-0 px-1" onClick={() => { setTab("sent"); setOpenId(null); }}>
-              <Send className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Sent</span>
-            </Button>
-            <Button size="sm" variant="outline" className="w-full min-w-0 px-1" disabled={!activeId} onClick={startCompose}>
-              <PenLine className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">New</span>
-            </Button>
+            {(
+              [
+                ["inbox", "Inbox", Inbox],
+                ["sent", "Sent", Send],
+                ["failed", `Failed${failedCount ? ` ${failedCount}` : ""}`, CircleAlert],
+              ] as const
+            ).map(([id, label, Icon]) => (
+              <Button
+                key={id}
+                size="sm"
+                variant={tab === id ? "default" : "ghost"}
+                className="w-full min-w-0 px-1"
+                onClick={() => {
+                  setTab(id);
+                  setOpenId(null);
+                  setComposing(false);
+                }}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{label}</span>
+              </Button>
+            ))}
           </div>
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
             {boxQ.isLoading ? <p className="p-4 text-sm text-paper/50">Loading {tab}…</p> : null}
             {boxQ.isError ? <p className="p-4 text-sm text-red-300">{(boxQ.error as Error).message}</p> : null}
             {boxQ.data && rows.length === 0 ? (
-              <p className="p-6 text-sm text-paper/45">Is mailbox ke {tab} mein kuch nahi.</p>
+              <p className="p-6 text-sm text-paper/45">{tab === "failed" ? "Koi failed mail nahi." : `Is mailbox ke ${tab} mein kuch nahi.`}</p>
             ) : null}
             {rows.map((row) => {
               const selected = row.id === openId;
@@ -292,14 +302,22 @@ export function EmailsPage() {
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
-                        {tab === "inbox" && mailIsUnseen(row.id) ? (
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-gold" />
-                        ) : null}
+                        {tab === "inbox" && mailIsUnseen(row.id) ? <span className="h-2 w-2 shrink-0 rounded-full bg-gold" /> : null}
                         <div className="truncate text-[13px] font-medium">{row.subject || "(no subject)"}</div>
                       </div>
-                      <div className="truncate text-[11px] text-paper/45">{tab === "inbox" ? row.from : addr(row.to)}</div>
+                      <div className="truncate text-[11px] text-paper/45">{tab === "inbox" ? row.from : addrLine(row.to)}</div>
+                      {row.snippet ? <div className="mt-0.5 line-clamp-2 text-[11px] text-paper/40">{row.snippet}</div> : null}
                     </div>
-                    <time className="shrink-0 whitespace-nowrap text-[10px] text-paper/35">{when(row.created_at)}</time>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <time className="whitespace-nowrap text-[10px] text-paper/35">{when(row.created_at)}</time>
+                      <StatusChip row={row} />
+                      {(row.attachment_count || 0) > 0 ? (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-paper/45">
+                          <Paperclip className="h-3 w-3" />
+                          {row.attachment_count}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </button>
               );
@@ -307,7 +325,7 @@ export function EmailsPage() {
           </div>
         </section>
 
-        <section className={cn("flex min-h-0 min-w-0 flex-col bg-ink/25 lg:min-h-[28rem]", pane === "list" ? "hidden lg:flex" : "flex")}>
+        <section className={cn("flex min-h-0 min-w-0 flex-col bg-ink/25", pane === "list" ? "hidden lg:flex" : "flex")}>
           <div className="flex items-center gap-2 border-b border-line px-2 py-2 lg:hidden">
             <Button variant="ghost" size="icon" aria-label="Back to list" onClick={() => setPane("list")}>
               <ArrowLeft className="h-4 w-4" />
@@ -316,11 +334,15 @@ export function EmailsPage() {
           </div>
 
           {composing ? (
-            <form className="grid min-w-0 flex-1 gap-3 overflow-y-auto p-3 sm:p-4" onSubmit={form.handleSubmit((v) => send.mutate(v))}>
+            <form className="grid min-w-0 flex-1 gap-3 overflow-y-auto overscroll-contain p-3 sm:p-4" onSubmit={form.handleSubmit((v) => send.mutate(v))}>
               <p className="break-all text-xs text-paper/45">Sending as {active?.from}</p>
               <div className="grid gap-1">
                 <Label htmlFor="to">To</Label>
-                <Input id="to" placeholder="name@example.com" {...form.register("to")} />
+                <Input id="to" inputMode="email" autoComplete="email" placeholder="name@example.com" {...form.register("to")} />
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="cc">Cc</Label>
+                <Input id="cc" inputMode="email" placeholder="optional" {...form.register("cc")} />
               </div>
               <div className="grid gap-1">
                 <Label htmlFor="subject">Subject</Label>
@@ -333,50 +355,52 @@ export function EmailsPage() {
               <FileAttachments
                 files={files}
                 onChange={setFiles}
-                label="Attachments"
-                hint="PDF, images, Word, Excel, zip — max 4 files, 4MB each. These go with the email."
+                label="Photos & documents"
+                hint="PDF, images, Word, Excel, zip — max 4 files, 4MB each."
                 maxBytes={4_000_000}
               />
               {send.isError ? <p className="text-sm text-red-400">{send.error.message}</p> : null}
-              {send.isSuccess ? <p className="text-sm text-mint">Sent</p> : null}
-              <Button type="submit" disabled={send.isPending || !activeId}>
+              {send.isSuccess ? (
+                <p className="text-sm text-mint">
+                  {send.data.status === "failed" ? "Failed" : "Queued / sent"} — status Sent folder me dikhega.
+                </p>
+              ) : null}
+              <Button type="submit" disabled={send.isPending || !activeId} className="sticky bottom-0">
                 {send.isPending ? "Sending…" : "Send"}
               </Button>
             </form>
           ) : openId ? (
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4">
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
               {detail.isLoading ? <p className="text-sm text-paper/50">Opening…</p> : null}
               {detail.isError ? <p className="break-words text-sm text-red-300">{(detail.error as Error).message}</p> : null}
               {detail.data ? (
-                <article className="grid min-w-0 gap-3">
-                  <h2 className="break-words text-lg font-semibold leading-snug">{detail.data.subject}</h2>
-                  <p className="break-all text-xs text-paper/50">
-                    {detail.data.from} → {addr(detail.data.to)}
-                  </p>
-                  <div className="whitespace-pre-wrap break-words rounded-xl bg-panel/80 p-4 text-sm leading-relaxed text-paper/90 [overflow-wrap:anywhere]">
-                    {preview || "No body text."}
-                  </div>
+                <div className="grid min-w-0 gap-3">
+                  <MailBody mail={detail.data} mailboxId={activeId} folder={folder} />
                   <Button
                     variant="outline"
                     className="w-full sm:w-auto"
                     onClick={() => {
-                      form.setValue("to", detail.data?.from || "");
-                      form.setValue("subject", `Re: ${detail.data?.subject || ""}`.replace(/^Re: Re: /, "Re: "));
+                      form.reset({
+                        to: detail.data?.from || "",
+                        cc: "",
+                        subject: `Re: ${detail.data?.subject || ""}`.replace(/^Re: Re: /, "Re: "),
+                        body: "",
+                      });
                       setComposing(true);
                     }}
                   >
                     Reply from {active?.label}
                   </Button>
-                </article>
+                </div>
               ) : null}
             </div>
           ) : (
             <div className="m-auto grid max-w-sm gap-3 p-8 text-center text-sm text-paper/50">
-              <p>{activeId ? "Kisi ko naya mail bhejne ke liye Compose kholo, ya left se ek message padho." : "Pehle Email setup se mailbox connect karo."}</p>
+              <p>{activeId ? "Compose se naya mail, ya list se message kholo. Photos/PDF yahin khulenge." : "Pehle Email setup se mailbox connect karo."}</p>
               {activeId ? (
                 <Button className="mx-auto" onClick={startCompose}>
                   <PenLine className="h-4 w-4" />
-                  Compose new mail
+                  Compose
                 </Button>
               ) : null}
             </div>
@@ -384,7 +408,7 @@ export function EmailsPage() {
         </section>
       </div>
 
-      {activeId && !composing ? (
+      {activeId && !composing && pane === "list" ? (
         <button
           type="button"
           onClick={startCompose}
