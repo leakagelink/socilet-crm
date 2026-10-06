@@ -15,7 +15,7 @@ import {
   visibleRecords,
 } from "./ai-context.mjs";
 import { documentBuffer, generateImageBuffer, saveGeneratedFile } from "./ai-files.mjs";
-import { sendCrmEmail } from "./email-api.mjs";
+import { readLiveMail, searchLiveMail, sendCrmEmail } from "./email-api.mjs";
 import { runWebResearch } from "./ai-research.mjs";
 import { companyPack } from "./ai-company.mjs";
 
@@ -53,10 +53,14 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "crm_search",
-      description: "Search CRM records by name, client, title, status, or notes.",
+      description: "Search CRM modules. Live inbox is search_mail.",
       parameters: {
         type: "object",
-        properties: { query: { type: "string" }, limit: { type: "number" } },
+        properties: {
+          query: { type: "string" },
+          module: { type: "string", description: "Optional module id, e.g. clients, invoices, spends" },
+          limit: { type: "number" },
+        },
         required: ["query"],
       },
     },
@@ -195,8 +199,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "generate_document",
-      description:
-        "Create a downloadable file the user can save: pdf, docx, html, md, csv, txt, json, svg. Put the FULL finished content in body. Use for proposals, reports, letters, invoices drafts, lists. Hindi/Devanagari is supported in PDF (embedded font) as well as docx/html.",
+      description: "Make a downloadable pdf|docx|html|md|csv|txt|json|svg. Full text in body. Hindi PDF ok.",
       parameters: {
         type: "object",
         properties: {
@@ -212,8 +215,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "generate_image",
-      description:
-        "Create an image/poster/logo. Uses the image model when available, otherwise a branded SVG. Write a detailed visual prompt.",
+      description: "Make a poster/logo image from a visual prompt.",
       parameters: {
         type: "object",
         properties: {
@@ -285,8 +287,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "log_meeting",
-      description:
-        "Save meeting notes. Optionally mark ended, create a CRM task, and a reminder. Finds meeting by title or creates one.",
+      description: "Save meeting notes; optional task/reminder.",
       parameters: {
         type: "object",
         properties: {
@@ -316,8 +317,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "web_research",
-      description:
-        "Live web research with sources. Use for market, competitor, news, GST/legal, tech, pricing outside CRM. depth=advanced fetches page text. Never use this for CRM balances — those come from client_intelligence.",
+      description: "Live web search with sources. Not for CRM balances.",
       parameters: {
         type: "object",
         properties: {
@@ -333,8 +333,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "company_pack",
-      description:
-        "Reload Socilet brand facts and live extracts from socilet.com / socilet.in. Use when the user asks about the company site, public offering, or says the brand pack is stale.",
+      description: "Reload socilet.com brand facts.",
       parameters: {
         type: "object",
         properties: { refresh: { type: "boolean" } },
@@ -344,8 +343,39 @@ export const TOOLS = [
   {
     type: "function",
     function: {
+      name: "search_mail",
+      description: "Search live inbox/sent. Then read_mail for the body.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          folder: { type: "string", description: "inbox|sent|all" },
+          mailbox: { type: "string" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_mail",
+      description: "Read one live email body by id from search_mail. folder=inbox|sent.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          folder: { type: "string" },
+          mailbox: { type: "string" },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "ads_performance",
-      description: "Ads ROAS snapshot: accounts, campaigns ranked, winning/losing, open leads. Use before recommending more spend.",
+      description: "Ads ROAS snapshot. Use before recommending spend.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
     },
   },
@@ -496,7 +526,7 @@ export async function executeTool(name, rawArgs, user, env = process.env) {
     return { ok: true, data: snapshotLite(buildDailySnapshot(records, state.settings.finance, ai.memory)) };
   }
   if (name === "crm_search") {
-    return { ok: true, data: searchCrm(records, args.query, Math.min(12, Number(args.limit) || 8)) };
+    return { ok: true, data: searchCrm(records, args.query, Math.min(28, Number(args.limit) || 16), args.module) };
   }
   if (name === "client_intelligence") {
     return { ok: true, data: clientPack(records, args.query) };
@@ -810,6 +840,24 @@ export async function executeTool(name, rawArgs, user, env = process.env) {
   if (name === "company_pack") {
     const pack = await companyPack(Boolean(args.refresh));
     return { ok: true, data: pack };
+  }
+
+  if (name === "search_mail") {
+    const data = await searchLiveMail(env, {
+      query: args.query,
+      folder: args.folder,
+      mailboxId: args.mailbox,
+    });
+    return data.error && !data.data?.length ? fail(data.error) : { ok: true, data };
+  }
+
+  if (name === "read_mail") {
+    const data = await readLiveMail(env, {
+      id: args.id,
+      folder: args.folder,
+      mailboxId: args.mailbox,
+    });
+    return data.error ? fail(data.error) : { ok: true, data };
   }
 
   if (name === "ads_performance") {

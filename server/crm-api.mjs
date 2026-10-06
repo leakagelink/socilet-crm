@@ -4,6 +4,7 @@ import { corsAndOptions, escapeHtml, guardOrigin, readJson } from "./security.mj
 import { requireApiUser } from "./auth-api.mjs";
 import { getVaultUnlock, loadAuth, prune, vaultConfigured } from "./auth-store.mjs";
 import { pickBestCopy, readJsonCopies, writeJsonCopies } from "./persist.mjs";
+import { applyAutomaticRecurring, settleAutomaticRecurringInState } from "./recurring.mjs";
 
 function emptyFirm() {
   return { legal_name: "Socilet", gstin: "", upi_id: "", address: "", phone: "", email: "", logo_url: "/socilet-logo.png" };
@@ -201,10 +202,28 @@ export async function handleCrmRequest(req, res, env = process.env) {
     const user = await requireApiUser(req, res, env);
     if (!user) return true;
 
+    if (req.method === "GET" && path === "/api/crm/payment-nudge") {
+      const { paymentNudgeStatus } = await import("./payment-nudge.mjs");
+      json(res, 200, { data: paymentNudgeStatus() });
+      return true;
+    }
+    if (req.method === "POST" && path === "/api/crm/payment-nudge") {
+      const input = (await readJson(req, res)) || {};
+      const { runPaymentNudges, setPaymentNudgeEnabled } = await import("./payment-nudge.mjs");
+      if (typeof input.enabled === "boolean") {
+        json(res, 200, { data: setPaymentNudgeEnabled(input.enabled) });
+        return true;
+      }
+      const data = await runPaymentNudges(env, { force: Boolean(input.force) });
+      json(res, 200, { data });
+      return true;
+    }
+
     if (req.method === "GET" && path === "/api/crm/records") {
       const module = qs.get("module");
       if (rejectLockedCreds(req, res, module)) return true;
       const state = loadState();
+      if (settleAutomaticRecurringInState(state)) saveState(state);
       let rows = module ? state.records.filter((r) => r.module === module) : state.records;
       if (!module && credsLocked(req)) rows = hideCreds(rows);
       json(res, 200, { data: rows });
@@ -227,6 +246,9 @@ export async function handleCrmRequest(req, res, env = process.env) {
       if (!row.module) {
         json(res, 400, { error: "module required" });
         return true;
+      }
+      if (row.module === "recurring_earnings") {
+        row.data = applyAutomaticRecurring(row.data).data;
       }
       state.records = state.records.filter((r) => r.id !== row.id);
       state.records.push(row);
@@ -278,6 +300,9 @@ export async function handleCrmRequest(req, res, env = process.env) {
       }
       if (rejectLockedCreds(req, res, existing.module)) return true;
       existing.data = input.data && typeof input.data === "object" ? input.data : existing.data;
+      if (existing.module === "recurring_earnings") {
+        existing.data = applyAutomaticRecurring(existing.data).data;
+      }
       existing.updated_at = new Date().toISOString();
       saveState(state);
       json(res, 200, { data: existing });

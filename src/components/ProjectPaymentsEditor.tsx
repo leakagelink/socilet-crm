@@ -66,7 +66,7 @@ export function ProjectPaymentsEditor({
       {pays.length ? (
         <div className="grid gap-2">
           {pays.map((p, i) => (
-            <div key={p.id} className="grid gap-2 rounded-xl border border-gold/20 bg-panel p-2 sm:grid-cols-[7rem_1fr_7rem_auto] sm:items-end">
+            <div key={p.id} className="grid grid-cols-2 gap-2 rounded-xl border border-gold/20 bg-panel p-2 sm:grid-cols-[7rem_1fr_7rem_auto] sm:items-end">
               <div className="grid gap-1">
                 <span className="text-[10px] uppercase tracking-wide text-paper/40">Date</span>
                 <Input type="date" value={p.date} onChange={(e) => patch(p.id, { date: e.target.value })} />

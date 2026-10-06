@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export type FieldKind = "text" | "number" | "date" | "textarea" | "select" | "checkbox" | "lookup";
+export type FieldKind = "text" | "number" | "date" | "time" | "textarea" | "select" | "checkbox" | "lookup";
 
 export type FieldDef = {
   name: string;
@@ -103,9 +103,10 @@ export const MODULES: ModuleDef[] = [
     fields: [
       { name: "title", label: "Title", kind: "text" },
       { name: "status", label: "Status", kind: "select", options: ["todo", "in_progress", "review", "done"] },
-      { name: "priority", label: "Priority", kind: "select", options: ["low", "medium", "high"] },
+      { name: "priority", label: "Priority", kind: "select", options: ["low", "medium", "high", "urgent"] },
       { name: "assignee", label: "Assignee", kind: "text" },
       { name: "due_date", label: "Due", kind: "date", optional: true },
+      { name: "due_time", label: "Time", kind: "time", optional: true },
     ],
   }),
   def({
@@ -140,15 +141,35 @@ export const MODULES: ModuleDef[] = [
   }),
   def({
     id: "project_addons",
-    title: "Project add-ons",
+    title: "Add-ons",
     path: "/project-addons",
-    description: "Extra work billed on a project",
+    description: "Client ne project ke beech extra kya add karwaya — date/time, amount, notes",
     fields: [
-      { name: "project_name", label: "Project", kind: "text" },
+      { name: "title", label: "Add-on / kya add hua", kind: "text" },
+      {
+        name: "project_name",
+        label: "Project",
+        kind: "lookup",
+        lookupModule: "projects",
+        lookupLabel: "name",
+        fillFrom: {
+          project_id: "id",
+          client: "client",
+          client_id: "client_id",
+          client_email: "client_email",
+          client_phone: "client_phone",
+        },
+      },
       { name: "project_id", label: "Project id", kind: "text", optional: true },
-      { name: "description", label: "Description", kind: "textarea" },
+      { name: "client", label: "Client", kind: "text" },
+      { name: "client_id", label: "Client id", kind: "text", optional: true },
+      { name: "client_email", label: "Client email", kind: "text", optional: true },
+      { name: "client_phone", label: "Client phone", kind: "text", optional: true },
+      { name: "date", label: "Date", kind: "date" },
+      { name: "time", label: "Time", kind: "time", optional: true },
       { name: "amount", label: "Amount (INR)", kind: "number" },
       { name: "status", label: "Status", kind: "select", options: ["unpaid", "partial", "paid"] },
+      { name: "notes", label: "Notes", kind: "textarea", optional: true },
     ],
   }),
   def({
@@ -229,6 +250,12 @@ export const MODULES: ModuleDef[] = [
       { name: "billing_date", label: "Billing day", kind: "number" },
       { name: "start_date", label: "Start", kind: "date", optional: true },
       { name: "next_date", label: "Next billing", kind: "date" },
+      {
+        name: "payment_mode",
+        label: "Payment",
+        kind: "select",
+        options: ["manual", "automatic"],
+      },
       { name: "payment_method", label: "Payment method", kind: "select", options: ["UPI", "Card", "Bank", "Other"] },
       { name: "last_paid_date", label: "Last paid", kind: "date", optional: true },
       { name: "last_paid_amount", label: "Last paid (INR)", kind: "number" },

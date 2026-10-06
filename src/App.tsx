@@ -27,6 +27,7 @@ import { ServiceCredentialsPage } from "@/pages/ServiceCredentialsPage";
 import { MeetingsPage } from "@/pages/MeetingsPage";
 import { MeetingJoinPage, MeetingRoomPage } from "@/pages/MeetingRoomPage";
 import { AdsPage } from "@/pages/AdsPage";
+import { LlmAnalyticsPage } from "@/pages/LlmAnalyticsPage";
 
 function Crud({ id }: { id: string }) {
   const m = MODULES.find((x) => x.id === id)!;
@@ -79,6 +80,7 @@ export function App() {
           <Route path="/email-setup" element={<EmailSetupPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/ads" element={<AdsPage />} />
+          <Route path="/llm-analytics" element={<LlmAnalyticsPage />} />
           <Route path="/meetings" element={<MeetingsPage />} />
           <Route path="/meetings/:id/room" element={<MeetingRoomPage />} />
           <Route path="/service-credentials" element={<ServiceCredentialsPage />} />

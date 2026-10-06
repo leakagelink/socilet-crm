@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell } from "lucide-react";
+import { ArrowLeft, Bell, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { OverlayPortal } from "@/components/ui/overlay-portal";
 import { markAllNotificationsRead, markNotificationRead, syncNotifications } from "@/lib/alerts";
@@ -28,6 +28,19 @@ export function NotificationBell() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["app-notifications"] }),
   });
 
+  useEffect(() => {
+    if (!open) return;
+    window.history.pushState({ sociletNotif: true }, "");
+    const onPop = () => setOpen(false);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [open]);
+
+  function closePanel() {
+    if (window.history.state?.sociletNotif) window.history.back();
+    else setOpen(false);
+  }
+
   return (
     <>
       <Button variant="outline" size="icon" className="relative" aria-label="Notifications" onClick={() => setOpen(true)}>
@@ -38,21 +51,39 @@ export function NotificationBell() {
           </span>
         ) : null}
       </Button>
-      <OverlayPortal open={open} onClose={() => setOpen(false)}>
+      <OverlayPortal open={open} onClose={closePanel}>
         <div className="fixed inset-0 z-50">
-          <button type="button" aria-label="Close notifications" className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+          <button type="button" aria-label="Close notifications" className="absolute inset-0 bg-black/50" onClick={closePanel} />
           <div
             role="dialog"
+            aria-modal="true"
             aria-label="Notifications"
-            className="sheet-scroll absolute inset-x-3 top-12 bottom-4 z-10 overflow-y-auto rounded-2xl border border-line bg-panel shadow-2xl sm:inset-auto sm:right-3 sm:top-3 sm:bottom-auto sm:max-h-[min(32rem,calc(100dvh-1.5rem))] sm:w-[min(24rem,calc(100vw-1.5rem))]"
+            className="absolute inset-x-0 top-0 z-10 flex max-h-[min(92dvh,40rem)] flex-col rounded-b-2xl border-b border-gold/20 bg-panel shadow-2xl sm:inset-auto sm:right-3 sm:top-3 sm:max-h-[min(32rem,calc(100dvh-1.5rem))] sm:w-[min(24rem,calc(100vw-1.5rem))] sm:rounded-2xl sm:border"
           >
-            <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
-              <h2 className="font-semibold">Notifications</h2>
+            <div className="flex shrink-0 items-center gap-1 border-b border-gold/15 bg-white/80 px-2 py-2 pt-[max(0.5rem,var(--sat))] sm:rounded-t-2xl">
+              <button
+                type="button"
+                aria-label="Back"
+                className="flex shrink-0 items-center gap-1 rounded-xl bg-gold/10 px-2 py-2 text-sm font-semibold text-gold hover:bg-gold/20"
+                onClick={closePanel}
+              >
+                <ArrowLeft className="h-5 w-5" />
+                Back
+              </button>
+              <h2 className="min-w-0 flex-1 truncate px-1 font-semibold">Notifications</h2>
               <Button variant="ghost" size="sm" disabled={!unread.length} onClick={() => readAll.mutate()}>
-                Mark all read
+                Mark read
               </Button>
+              <button
+                type="button"
+                aria-label="Close"
+                className="rounded-xl p-2 text-paper/55 hover:bg-gold/10 hover:text-gold"
+                onClick={closePanel}
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {q.isLoading ? <p className="p-4 text-sm text-paper/50">Checking email, tasks, projects, reminders…</p> : null}
               {q.isError ? <p className="p-4 text-sm text-red-300">Could not refresh alerts.</p> : null}
               {!q.isLoading && rows.length === 0 ? (

@@ -42,6 +42,11 @@ createServer(async (req, res) => {
     await handleAdsRequest(req, res, process.env);
     return;
   }
+  if (path.startsWith("/api/llm")) {
+    const { handleLlmRequest } = await import("./server/llm-analytics.mjs");
+    await handleLlmRequest(req, res, process.env);
+    return;
+  }
   if (path.startsWith("/api/crm")) {
     await handleCrmRequest(req, res, process.env);
     return;
@@ -62,7 +67,11 @@ createServer(async (req, res) => {
 }).listen(port, "0.0.0.0", () => {
   console.log(`Socilet CRM + Resend API on 0.0.0.0:${port}`);
   void runDailyBackup(process.env);
+  void import("./server/payment-nudge.mjs").then((m) => m.runPaymentNudges(process.env)).catch((err) => console.error("payment nudge", err));
   setInterval(() => {
     void runDailyBackup(process.env);
   }, 6 * 60 * 60 * 1000);
+  setInterval(() => {
+    void import("./server/payment-nudge.mjs").then((m) => m.runPaymentNudges(process.env)).catch((err) => console.error("payment nudge", err));
+  }, 60 * 60 * 1000);
 });

@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Download, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import { deleteRecord, insertRecord, listRecords, mergeRecords, updateRecord, type RecordRow } from "@/lib/db";
 import type { ModuleDef } from "@/lib/modules";
+import { moduleById } from "@/lib/modules";
 import { RecordForm } from "@/components/RecordForm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +14,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { HighlightCell, ProjectCountdown, StatusBadge } from "@/components/HighlightCell";
 import { ProjectPaymentTrail } from "@/components/ProjectPaymentsEditor";
 import { parseCollections, parseProjectPayments } from "@/lib/projectPayments";
+import { addonPendingAmount, addonSeedFromProject, addonWhen, addonsForProject } from "@/lib/projectAddons";
 import { expectedInterest, isLend } from "@/lib/lendBorrow";
 import { AnimatedInr } from "@/components/AnimatedInr";
 import { chipFields, insightTiles, moduleKicker, money as viewMoney, rowMoney, rowSubtitle, rowTitle } from "@/lib/moduleView";
@@ -40,6 +43,10 @@ export function ModuleCrud({
   onEdit?: (row: RecordRow) => void;
 }) {
   const qc = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const seedClientId = params.get("client_id") || "";
+  const seedProjectId = params.get("project_id") || "";
+  const addonModule = moduleById("project_addons");
   const q = useQuery({
     queryKey: ["module", module.id],
     queryFn: () => listRecords(module.id),
@@ -49,8 +56,25 @@ export function ModuleCrud({
     queryFn: () => listRecords("spends"),
     enabled: module.id === "projects",
   });
+  const addonsQ = useQuery({
+    queryKey: ["module", "project_addons"],
+    queryFn: () => listRecords("project_addons"),
+    enabled: module.id === "projects" || module.id === "project_addons",
+  });
+  const seedProjectQ = useQuery({
+    queryKey: ["module", "projects"],
+    queryFn: () => listRecords("projects"),
+    enabled: Boolean(seedProjectId) && module.id === "project_addons",
+  });
+  const seedClientQ = useQuery({
+    queryKey: ["module", "clients"],
+    queryFn: () => listRecords("clients"),
+    enabled: Boolean(seedClientId) && module.fields.some((f) => f.name === "client"),
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RecordRow | null>(null);
+  const [addonOpen, setAddonOpen] = useState(false);
+  const [addonSeed, setAddonSeed] = useState<Record<string, unknown> | null>(null);
   const [search, setSearch] = useState("");
   const [selects, setSelects] = useState<Record<string, string>>({});
   const [from, setFrom] = useState("");
@@ -74,10 +98,29 @@ export function ModuleCrud({
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["module", module.id] });
+      await qc.invalidateQueries({ queryKey: ["module", "project_addons"] });
       await qc.invalidateQueries({ queryKey: ["finance"] });
       await qc.invalidateQueries({ queryKey: ["balance-ledger"] });
       setOpen(false);
       setEditing(null);
+      if (seedClientId || seedProjectId || params.get("new") === "1") {
+        const next = new URLSearchParams(params);
+        next.delete("client_id");
+        next.delete("project_id");
+        next.delete("new");
+        setParams(next, { replace: true });
+      }
+    },
+  });
+
+  const saveAddon = useMutation({
+    mutationFn: (values: Record<string, unknown>) => insertRecord("project_addons", values),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["module", "project_addons"] });
+      await qc.invalidateQueries({ queryKey: ["finance"] });
+      await qc.invalidateQueries({ queryKey: ["balance-ledger"] });
+      setAddonOpen(false);
+      setAddonSeed(null);
     },
   });
 
@@ -91,6 +134,28 @@ export function ModuleCrud({
   });
 
   const stamp = new Date().toISOString().slice(0, 10);
+  const seedClient = seedClientQ.data?.find((c) => c.id === seedClientId);
+  const seedProject = seedProjectQ.data?.find((p) => p.id === seedProjectId);
+  const formDefaults =
+    editing?.data ??
+    (seedProject && module.id === "project_addons"
+      ? addonSeedFromProject(seedProject)
+      : seedClient
+        ? {
+            client_id: seedClient.id,
+            client: seedClient.data.name,
+            client_email: seedClient.data.email,
+            client_phone: seedClient.data.phone,
+            client_gstin: seedClient.data.gstin,
+            client_address: seedClient.data.address,
+          }
+        : undefined);
+
+  useEffect(() => {
+    if (editing) return;
+    if (!seedClientId && !seedProjectId && params.get("new") !== "1") return;
+    setOpen(true);
+  }, [seedClientId, seedProjectId, params, editing]);
 
   function startNew() {
     if (onNew) {
@@ -99,6 +164,11 @@ export function ModuleCrud({
     }
     setEditing(null);
     setOpen(true);
+  }
+
+  function startAddon(project: RecordRow) {
+    setAddonSeed(addonSeedFromProject(project));
+    setAddonOpen(true);
   }
 
   function startEdit(row: RecordRow) {
@@ -332,6 +402,7 @@ export function ModuleCrud({
                   ))}
                 </div>
                 {module.id === "projects" ? (
+                  <>
                   <div className="mt-3 rounded-xl border border-gold/15 bg-gold/5 px-3 py-2">
                     <div className="mb-1 text-[10px] uppercase tracking-wide text-paper/40">Payments</div>
                     <ProjectPaymentTrail client={String(row.data.client || "")} pays={parseProjectPayments(row.data)} />
@@ -353,6 +424,44 @@ export function ModuleCrud({
                       );
                     })()}
                   </div>
+                  {(() => {
+                    const extras = addonsForProject(addonsQ.data ?? [], row);
+                    const pending = extras.reduce((a, r) => a + addonPendingAmount(r), 0);
+                    return (
+                      <div className="mt-3 rounded-xl border border-gold/15 bg-gold/5 px-3 py-2">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <div className="text-[10px] uppercase tracking-wide text-paper/40">Add-ons</div>
+                          {pending ? <span className="text-[11px] text-amber-300">{inr(pending)} pending</span> : null}
+                        </div>
+                        {extras.length ? (
+                          <div className="grid gap-1.5">
+                            {extras.map((a) => (
+                              <div key={a.id} className="flex min-w-0 items-start justify-between gap-2 text-xs">
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium">{String(a.data.title || a.data.description || "Add-on")}</div>
+                                  <div className="text-[11px] text-paper/45">
+                                    {addonWhen(a)}
+                                    {a.data.notes ? ` · ${String(a.data.notes).slice(0, 80)}` : ""}
+                                  </div>
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <div>{inr(viewMoney(a.data.amount))}</div>
+                                  <StatusBadge value={a.data.status} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-paper/45">Beech me extra work yahan add karo.</p>
+                        )}
+                        <Button type="button" size="sm" variant="outline" className="mt-2 w-full" onClick={() => startAddon(row)}>
+                          <Plus className="h-3.5 w-3.5" />
+                          Add-on
+                        </Button>
+                      </div>
+                    );
+                  })()}
+                  </>
                 ) : null}
                 {module.id === "lend_borrow" ? (
                   <div className="mt-3 rounded-xl border border-gold/15 bg-gold/5 px-3 py-2">
@@ -378,16 +487,42 @@ export function ModuleCrud({
         </div>
       ) : null}
 
-      <Modal open={open} onOpenChange={setOpen} title={editing ? `Edit ${module.title}` : `New ${module.title}`}>
+      <Modal
+        open={open}
+        title={editing ? `Edit ${module.title}` : `New ${module.title}`}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (v) return;
+          if (!seedClientId && params.get("new") !== "1") return;
+          const next = new URLSearchParams(params);
+          next.delete("client_id");
+          next.delete("new");
+          setParams(next, { replace: true });
+        }}
+      >
         <RecordForm
-          key={editing?.id ?? "new"}
+          key={editing?.id ?? (seedClientId || "new")}
           module={module}
-          defaults={editing?.data}
+          defaults={formDefaults}
           submitting={save.isPending}
           onSubmit={(v) => save.mutateAsync(v)}
         />
         {save.isError ? <p className="mt-2 text-sm text-red-600">Save failed. Check the fields.</p> : null}
       </Modal>
+      {addonModule ? (
+        <Modal open={addonOpen} title="New add-on" onOpenChange={setAddonOpen}>
+          {addonSeed ? (
+            <RecordForm
+              key={`${String(addonSeed.project_id || "addon")}-${String(addonSeed.date || "")}`}
+              module={addonModule}
+              defaults={addonSeed}
+              submitting={saveAddon.isPending}
+              onSubmit={(v) => saveAddon.mutateAsync(v)}
+            />
+          ) : null}
+          {saveAddon.isError ? <p className="mt-2 text-sm text-red-600">Add-on save failed.</p> : null}
+        </Modal>
+      ) : null}
     </div>
   );
 }

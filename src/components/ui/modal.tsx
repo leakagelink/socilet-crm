@@ -16,7 +16,7 @@ export function Modal({
 }) {
   return (
     <OverlayPortal open={open} onClose={() => onOpenChange(false)}>
-      <div className="fixed inset-0 z-50">
+      <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center sm:p-4">
         <button
           type="button"
           aria-label="Close dialog"
@@ -27,15 +27,17 @@ export function Modal({
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="sheet-scroll absolute inset-x-3 top-[calc(var(--sat)+0.75rem)] bottom-[calc(var(--sab)+1rem)] z-10 overflow-y-auto rounded-2xl border border-gold/25 bg-panel p-4 shadow-2xl sm:inset-x-auto sm:left-1/2 sm:top-[max(6vh,calc(var(--sat)+1rem))] sm:bottom-auto sm:max-h-[86vh] sm:w-[min(560px,calc(100%-1.5rem))] sm:-translate-x-1/2 sm:p-5"
+          className="relative z-10 flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-panel shadow-2xl sm:max-h-[min(90dvh,52rem)] sm:w-[min(36rem,calc(100vw-2rem))] sm:flex-none sm:rounded-2xl sm:border sm:border-gold/25"
         >
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <Button variant="ghost" size="icon" aria-label="Close" onClick={() => onOpenChange(false)}>
-              <X className="h-4 w-4" />
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gold/15 bg-panel px-3 py-2.5 pt-[max(0.65rem,var(--sat))] sm:rounded-t-2xl sm:px-5 sm:pt-3">
+            <h2 className="min-w-0 truncate text-base font-semibold sm:text-lg">{title}</h2>
+            <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 sm:h-10 sm:w-10" aria-label="Close" onClick={() => onOpenChange(false)}>
+              <X className="h-5 w-5" />
             </Button>
           </div>
-          {children}
+          <div className="sheet-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 pb-[max(1rem,var(--sab))] sm:px-5 sm:py-4">
+            {children}
+          </div>
         </div>
       </div>
     </OverlayPortal>

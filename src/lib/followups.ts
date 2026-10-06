@@ -1,6 +1,7 @@
 import { listRecords, type RecordRow } from "@/lib/db";
 import { waLink } from "@/lib/pipeline";
 import { isLend, remainingOnDeal } from "@/lib/lendBorrow";
+import { isAutomaticPayment, settleAutomaticRecurring, todayIST } from "@/lib/recurring";
 
 function str(v: unknown) {
   return String(v ?? "").trim();
@@ -29,7 +30,8 @@ export type FollowItem = {
 };
 
 export async function loadFollowUps(): Promise<FollowItem[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  await settleAutomaticRecurring();
+  const today = todayIST();
   const [projects, invoices, tasks, reminders, recurring, clients, lendBorrow] = await Promise.all([
     listRecords("projects"),
     listRecords("invoices"),
@@ -59,19 +61,21 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
     const remain = num(row.data.remaining_amount);
     const status = str(row.data.status);
     if (remain <= 0 || status === "done" || status === "completed") continue;
+    const due = day(row.data.deadline || row.data.end_date);
+    const overdue = Boolean(due && due < today);
     const phone = phoneOf(row);
     const name = str(row.data.name) || "Project";
     const text = `Namaste, ${str(row.data.client) || "there"}. Pending on ${name} is ₹${Math.round(remain)}. Please share payment update.`;
     items.push({
       id: `project:${row.id}`,
-      kind: "Pending project",
+      kind: overdue ? "Overdue project" : "Pending project",
       title: name,
-      detail: `${str(row.data.client)} · remaining ₹${Math.round(remain)}`,
+      detail: `${str(row.data.client)} · remaining ₹${Math.round(remain)}${due ? ` · ${due}` : ""}`,
       href: "/projects",
       phone,
       email: emailOf(row),
       wa: waLink(phone, text),
-      tone: "overdue",
+      tone: overdue ? "overdue" : "due",
     });
   }
 
@@ -134,6 +138,7 @@ export async function loadFollowUps(): Promise<FollowItem[]> {
 
   for (const row of recurring) {
     if (row.data.active === false) continue;
+    if (isAutomaticPayment(row.data)) continue;
     const next = day(row.data.next_date);
     if (!next || next > today) continue;
     const phone = phoneOf(row);

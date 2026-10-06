@@ -151,8 +151,5 @@ export function applyCollections(data: Record<string, unknown>, pays: ProjectPay
 }
 
 export function collectionCash(row: RecordRow) {
-  const cols = parseCollections(row.data);
-  if (cols.length) return receivedFromPayments(cols);
-  if (row.data.active === false) return 0;
-  return money(row.data.amount);
+  return receivedFromPayments(parseCollections(row.data));
 }

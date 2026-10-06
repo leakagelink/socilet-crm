@@ -274,6 +274,141 @@ function prettyHtml(text) {
   return `<div style="font-family:Georgia,ui-serif,serif;font-size:16px;line-height:1.55;color:#1a1a1a">${body}</div>`;
 }
 
+function stripMailText(html) {
+  return String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mailHay(row, extra = "") {
+  const to = Array.isArray(row?.to) ? row.to.join(" ") : row?.to;
+  return [row?.subject, row?.from, to, row?.text, stripMailText(row?.html), extra]
+    .map((s) => String(s || "").toLowerCase())
+    .join(" ");
+}
+
+export async function searchLiveMail(env, { query, folder, mailboxId, limit } = {}) {
+  const boxes = withEnvMailbox(env, loadStore());
+  if (!boxes.length) return { error: "No mailbox connected. Connect one in Email setup.", data: [] };
+  const STOP = new Set([
+    "kya",
+    "hai",
+    "he",
+    "the",
+    "about",
+    "me",
+    "mera",
+    "meri",
+    "ka",
+    "ki",
+    "ke",
+    "ko",
+    "se",
+    "wala",
+    "wali",
+    "email",
+    "emails",
+    "mail",
+    "inbox",
+    "sent",
+    "from",
+    "and",
+    "please",
+    "batao",
+    "bata",
+    "dikhao",
+  ]);
+  const q = String(query || "").toLowerCase().trim();
+  const parts = q.split(/\s+/).filter((p) => p.length > 1 && !STOP.has(p));
+  const lim = Math.min(20, Number(limit) || 12);
+  const want =
+    folder === "inbox" || folder === "receiving" ? ["inbox"] : folder === "sent" ? ["sent"] : ["inbox", "sent"];
+  const hits = [];
+  const errors = [];
+  for (const box of boxes) {
+    if (mailboxId && box.id !== mailboxId && String(box.label || "").toLowerCase() !== String(mailboxId).toLowerCase()) continue;
+    for (const f of want) {
+      try {
+        const path = f === "inbox" ? "/emails/receiving?limit=50" : "/emails?limit=50";
+        const data = await resendWithKey(box.apiKey, "GET", path);
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        for (const row of rows) {
+          const hay = mailHay(row, `${f} ${box.label} ${box.from}`);
+          const ok = !parts.length || parts.some((p) => hay.includes(p));
+          if (!ok) continue;
+          hits.push({
+            id: row.id,
+            folder: f,
+            mailbox: box.label,
+            mailbox_id: box.id,
+            href: "/emails",
+            from: row.from,
+            to: row.to,
+            subject: row.subject || "(no subject)",
+            created_at: row.created_at,
+            last_event: row.last_event || (f === "inbox" ? "received" : "sent"),
+            snippet: String(row.text || stripMailText(row.html) || "").slice(0, 180),
+          });
+        }
+      } catch (err) {
+        errors.push({ mailbox: box.label, folder: f, error: err instanceof Error ? err.message : "Mail fetch failed" });
+      }
+    }
+  }
+  return {
+    data: hits.slice(0, lim),
+    mailboxes: boxes.map((b) => ({ id: b.id, label: b.label, from: b.from })),
+    errors: errors.length ? errors : undefined,
+    hint: hits.length ? "Call read_mail with id + folder for the full body." : "No live mail matched. Try a subject word, sender, or folder=inbox|sent.",
+  };
+}
+
+export async function readLiveMail(env, { id, folder, mailboxId } = {}) {
+  const emailId = String(id || "").trim();
+  if (!emailId) return { error: "Email id required." };
+  const boxes = withEnvMailbox(env, loadStore());
+  if (!boxes.length) return { error: "No mailbox connected." };
+  const ordered = mailboxId
+    ? [
+        boxes.find((b) => b.id === mailboxId || String(b.label).toLowerCase() === String(mailboxId).toLowerCase()),
+        ...boxes,
+      ].filter(Boolean)
+    : boxes;
+  const seen = new Set();
+  const folders = folder === "sent" ? ["sent", "inbox"] : folder === "inbox" ? ["inbox", "sent"] : ["inbox", "sent"];
+  let lastErr = "Email not found.";
+  for (const box of ordered) {
+    if (!box || seen.has(box.id)) continue;
+    seen.add(box.id);
+    for (const f of folders) {
+      try {
+        const path = f === "inbox" ? `/emails/receiving/${emailId}` : `/emails/${emailId}`;
+        const data = await resendWithKey(box.apiKey, "GET", path);
+        const text = String(data.text || "").trim() || stripMailText(data.html);
+        return {
+          id: data.id || emailId,
+          folder: f,
+          mailbox: box.label,
+          mailbox_id: box.id,
+          href: "/emails",
+          from: data.from,
+          to: data.to,
+          cc: data.cc,
+          subject: data.subject,
+          created_at: data.created_at,
+          last_event: data.last_event || (f === "inbox" ? "received" : "sent"),
+          text: text.slice(0, 8000),
+        };
+      } catch (err) {
+        lastErr = err instanceof Error ? err.message : lastErr;
+      }
+    }
+  }
+  return { error: lastErr };
+}
+
 export async function handleEmailRequest(req, res, env) {
   if (corsAndOptions(req, res, env)) return true;
 

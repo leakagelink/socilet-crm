@@ -9,6 +9,8 @@ import { BarChart, DistributionDonut, DonutChart, MonthlyBarChart, MonthlyLineCh
 import { AvailableBalanceEditor } from "@/components/AvailableBalanceEditor";
 import { PageHeader } from "@/components/PageHeader";
 import { ExecutiveBriefCard } from "@/components/ExecutiveBriefCard";
+import { HomeTasksSection } from "@/components/HomeTasksSection";
+import { useTaskLock } from "@/hooks/useTaskLock";
 import { listRecords } from "@/lib/db";
 import { Link } from "react-router-dom";
 import {
@@ -37,6 +39,7 @@ import {
 
 export function DashboardPage() {
   const f = useFinance();
+  const taskLock = useTaskLock();
   const [chartTab, setChartTab] = useState<"bar" | "trend" | "dist">("bar");
   const counts = useQuery({
     queryKey: ["dash-counts"],
@@ -52,7 +55,7 @@ export function DashboardPage() {
     queryFn: async () => {
       const keys = ["projects", "tasks", "invoices", "quotations", "reminders", "spends", "other_income", "investments", "lend_borrow"];
       const rows = (await Promise.all(keys.map(listRecords))).flat();
-      return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
+      return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 20);
     },
     refetchInterval: 30_000,
   });
@@ -67,6 +70,7 @@ export function DashboardPage() {
     ["Lend/Borrow", "/lend-borrow", counts.data?.lend_borrow ?? 0, Handshake],
     ["Calculator", "/calculator", "INR", Calculator],
   ] as const;
+  const motion = (activity.data ?? []).filter((row) => !(taskLock.locked && row.module === "tasks")).slice(0, 6);
 
   return (
     <div className="grid min-w-0 max-w-full gap-4 sm:gap-6">
@@ -189,12 +193,12 @@ export function DashboardPage() {
         <Card className="min-w-0 overflow-hidden p-3 sm:p-5 lg:col-span-2">
           <h2 className="mb-3 font-display text-lg">Recent motion</h2>
           <div className="grid min-w-0 gap-2">
-            {(activity.data ?? []).length === 0 ? (
+            {motion.length === 0 ? (
               <p className="text-sm text-paper/45">
                 No rows yet — <Link to="/activity" className="text-gold">activity log</Link> fills as staff save records.
               </p>
             ) : (
-              (activity.data ?? []).map((row) => {
+              motion.map((row) => {
                 const title = MODULES.find((m) => m.id === row.module)?.title ?? row.module;
                 const name = String(row.data.name ?? row.data.title ?? row.data.quote_no ?? row.data.invoice_no ?? title);
                 return (
@@ -212,6 +216,8 @@ export function DashboardPage() {
         </Card>
       </div>
 
+      <HomeTasksSection />
+
       <div className="stagger grid min-w-0 grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {tiles.map(([label, href, n, Icon]) => (
           <Link key={href} to={href} className="block min-w-0">
@@ -221,7 +227,7 @@ export function DashboardPage() {
                 <ArrowUpRight className="h-4 w-4 text-paper/25 transition group-hover:text-mint" />
               </div>
               <div className="mt-4 text-xs text-paper/45">{label}</div>
-              <div className="font-display text-3xl">{n}</div>
+              <div className="font-display text-3xl">{href === "/tasks" && taskLock.locked ? "•••" : n}</div>
             </Card>
           </Link>
         ))}

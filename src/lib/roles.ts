@@ -26,6 +26,7 @@ const DESIGNER = [
   "/notifications",
   "/account",
   "/calculator",
+  "/llm-analytics",
 ];
 
 const ACCOUNTANT = [
@@ -52,6 +53,7 @@ const ACCOUNTANT = [
   "/gst",
   "/calculator",
   "/ads",
+  "/llm-analytics",
   "/meetings",
   "/activity",
   "/reminders",

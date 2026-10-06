@@ -131,6 +131,9 @@ export function ClientDetailPage() {
         <Button variant="outline" onClick={() => navigate("/clients")}>
           All clients
         </Button>
+        <Button onClick={() => navigate(`/projects?client_id=${encodeURIComponent(c.id)}&new=1`)}>
+          New project
+        </Button>
         {wa ? (
           <Button variant="outline" asChild>
             <a href={wa} target="_blank" rel="noreferrer">
@@ -168,6 +171,8 @@ export function ClientDetailPage() {
         title="Projects"
         rows={d.related.projects}
         href="/projects"
+        newHref={`/projects?client_id=${encodeURIComponent(c.id)}&new=1`}
+        newLabel="New project"
         render={(r) => (
           <div className="grid min-w-0 gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -260,20 +265,31 @@ function Section({
   title,
   rows,
   href,
+  newHref,
+  newLabel,
   render,
 }: {
   title: string;
   rows: RecordRow[];
   href: string;
+  newHref?: string;
+  newLabel?: string;
   render: (r: RecordRow) => ReactNode;
 }) {
   return (
     <Card className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="font-display text-lg">{title}</h2>
-        <Link to={href} className="text-xs text-gold">
-          Open module
-        </Link>
+        <div className="flex items-center gap-2">
+          {newHref ? (
+            <Link to={newHref} className="text-xs text-gold">
+              {newLabel || "New"}
+            </Link>
+          ) : null}
+          <Link to={href} className="text-xs text-gold">
+            Open module
+          </Link>
+        </div>
       </div>
       {rows.length === 0 ? <p className="text-sm text-paper/45">None yet.</p> : null}
       <div className="grid gap-2">

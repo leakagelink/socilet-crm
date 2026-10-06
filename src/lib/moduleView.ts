@@ -1,6 +1,8 @@
 import type { ModuleDef } from "@/lib/modules";
 import type { RecordRow } from "@/lib/db";
 import { DATE_FIELDS } from "@/lib/highlights";
+import { collectionCash } from "@/lib/projectPayments";
+import { isAutomaticPayment, todayIST } from "@/lib/recurring";
 
 export function money(v: unknown) {
   const n = typeof v === "number" ? v : Number(v);
@@ -25,6 +27,9 @@ const TITLE_KEYS = [
 ];
 
 export function rowTitle(row: RecordRow, module: ModuleDef) {
+  if (module.id === "project_addons") {
+    return String(row.data.title || row.data.description || "").trim() || "Add-on";
+  }
   for (const key of TITLE_KEYS) {
     const v = String(row.data[key] ?? "").trim();
     if (v) return v;
@@ -35,7 +40,11 @@ export function rowTitle(row: RecordRow, module: ModuleDef) {
 }
 
 export function rowSubtitle(row: RecordRow) {
-  const bits = [row.data.client, row.data.party, row.data.company, row.data.category, row.data.project_name, row.data.platform, row.data.type, row.data.assignee]
+  if (row.module === "project_addons") {
+    const when = [String(row.data.date ?? "").trim(), String(row.data.time ?? "").trim()].filter(Boolean).join(" · ");
+    return [String(row.data.client ?? "").trim(), when].filter(Boolean).join(" · ");
+  }
+  const bits = [row.data.client, row.data.party, row.data.company, row.data.category, row.data.platform, row.data.type, row.data.assignee]
     .map((v) => String(v ?? "").trim())
     .filter(Boolean);
   return [...new Set(bits)].slice(0, 2).join(" · ");
@@ -63,10 +72,11 @@ export function chipFields(module: ModuleDef) {
   return module.fields.filter((f) => {
     if (skip.has(f.name)) return false;
     if (f.name === "status") return false;
+    if (module.id === "project_addons" && f.name === "project_name") return false;
     return (
       f.kind === "date" ||
       DATE_FIELDS.has(f.name) ||
-      ["client", "category", "payment_method", "priority", "type", "platform", "project_name", "email", "phone", "company", "direction", "payout"].includes(f.name)
+      ["client", "category", "payment_method", "payment_mode", "priority", "type", "platform", "email", "phone", "company", "direction", "payout", "time"].includes(f.name)
     );
   }).slice(0, 5);
 }
@@ -154,9 +164,16 @@ export function insightTiles(module: ModuleDef, rows: RecordRow[]): InsightTile[
   }
   if (id === "recurring_earnings") {
     const monthly = rows.filter((r) => r.data.active !== false).reduce((a, r) => a + money(r.data.amount), 0);
+    const received = rows.reduce((a, r) => a + collectionCash(r), 0);
+    const due = rows.filter((r) => {
+      if (r.data.active === false || isAutomaticPayment(r.data)) return false;
+      const next = String(r.data.next_date || "").slice(0, 10);
+      return next && next <= todayIST();
+    }).length;
     return [
-      { label: "Monthly", hint: "Active recurring", value: monthly, tone: TONES[1] },
-      { label: "Plans", hint: "Rows", value: n, tone: TONES[2] },
+      { label: "Received", hint: "In the books", value: received, tone: TONES[0] },
+      { label: "Monthly", hint: "Active plans", value: monthly, tone: TONES[1] },
+      { label: "Manual due", hint: "Awaiting receipt", value: due, tone: TONES[2] },
     ];
   }
   const amountField = module.fields.find((f) => f.kind === "number" && /amount|price|total|value/.test(f.name));

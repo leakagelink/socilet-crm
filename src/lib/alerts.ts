@@ -84,14 +84,16 @@ export async function collectAlerts(): Promise<AlertItem[]> {
     }),
     fromModule("tasks", "/tasks", (row) => {
       const status = str(row.data.status);
+      if (status === "done") return null;
+      const urgent = str(row.data.priority).toLowerCase() === "urgent";
       const due = ts(row.data.due_date);
-      if (status === "done" || due == null || due > soon) return null;
-      const overdue = due < today;
+      if (!urgent && (due == null || due > soon)) return null;
+      const overdue = due != null && due < today;
       return {
         source_id: `task:${row.id}`,
-        title: overdue ? "Task overdue" : "Task due soon",
+        title: overdue ? "Task overdue" : urgent ? "Urgent task" : "Task due soon",
         message: `${str(row.data.title)} (${status || "open"})`,
-        level: overdue ? "error" : "warning",
+        level: overdue || urgent ? "error" : "warning",
         href: "/tasks",
       };
     }),
@@ -148,6 +150,7 @@ export async function collectAlerts(): Promise<AlertItem[]> {
     }),
     fromModule("recurring_earnings", "/recurring-earnings", (row) => {
       if (row.data.active === false) return null;
+      if (String(row.data.payment_mode || "").toLowerCase() === "automatic") return null;
       const next = ts(row.data.next_date);
       if (next == null || next > soon) return null;
       return {

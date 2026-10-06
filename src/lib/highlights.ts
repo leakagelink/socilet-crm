@@ -17,6 +17,7 @@ const STATUS_TONE: Record<string, string> = {
   pending: "wait",
   due: "soon",
   high: "soon",
+  urgent: "bad",
   medium: "info",
   low: "wait",
   paused: "warn",

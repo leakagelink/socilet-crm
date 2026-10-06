@@ -158,6 +158,48 @@ export function sessionHistory(userId, sessionId) {
   return Array.isArray(row?.messages) ? row.messages : [];
 }
 
+function oneLine(role, content) {
+  const t = String(content || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const names = [...t.matchAll(/\[([^\]]+)\]\((\/[^)]+)\)/g)].map((m) => m[1]).slice(0, 3);
+  const head = t.slice(0, role === "user" ? 90 : 64);
+  return `${role === "user" ? "U" : "A"}: ${head}${names.length ? ` · ${names.join(", ")}` : ""}`;
+}
+
+export function digestTurns(messages, maxChars = 900) {
+  const lines = [];
+  for (const m of messages || []) {
+    if (m.role !== "user" && m.role !== "assistant") continue;
+    lines.push(oneLine(m.role, m.content));
+  }
+  const keep = [];
+  let n = 0;
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const add = lines[i].length + 1;
+    if (n + add > maxChars) break;
+    keep.unshift(lines[i]);
+    n += add;
+  }
+  return keep.join("\n");
+}
+
+export function packHistory(messages, recentN, clip = 500) {
+  const list = (Array.isArray(messages) ? messages : []).filter((m) => m.role === "user" || m.role === "assistant");
+  const take = Math.max(2, Number(recentN) || 4);
+  const recent = list.slice(-take);
+  const older = list.slice(0, Math.max(0, list.length - take));
+  const packed = [];
+  if (older.length) {
+    packed.push({ role: "system", content: `THREAD_SO_FAR (compressed, not CRM facts):\n${digestTurns(older)}` });
+  }
+  for (const m of recent) {
+    const c = String(m.content || "");
+    packed.push({ role: m.role, content: c.length <= clip ? c : `${c.slice(0, clip)}…` });
+  }
+  return packed;
+}
+
 export function otherSessionIndex(userId, currentId) {
   return listSessions(userId)
     .filter((s) => s.id !== currentId)

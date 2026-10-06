@@ -1,6 +1,7 @@
 import { db, cloudLive, listRecords, type RecordRow, type SettingsRow } from "@/lib/db";
 import { apiJson } from "@/lib/apiBase";
 import { collectionCash, linkedInvoiceIds, parseCollections, projectCashIn, projectReceipts } from "@/lib/projectPayments";
+import { settleAutomaticRecurring } from "@/lib/recurring";
 import { isLend, lendBorrowNet, remainingOnDeal } from "@/lib/lendBorrow";
 
 export type MonthBucket = {
@@ -122,6 +123,7 @@ async function writeFinance(base: number) {
 }
 
 export async function loadFinance(): Promise<FinanceSnapshot> {
+  await settleAutomaticRecurring();
   const settings = await readFinance();
   const base = settings.base_balance ?? 0;
   const [other, cosmofeedRows, recurring, invoices, spends, investments, digital, addons, projects, adjustments, lendBorrow] = await Promise.all([
@@ -167,7 +169,7 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
   const borrowedRepay = lendBorrow.filter((r) => !isLend(r.data)).reduce((acc, r) => acc + remainingOnDeal(r.data), 0);
   const available = base + totalIncome - totalSpends + lbNet;
   /** Cash already in: other + digital + cosmofeed + project receipts (incl. completed) */
-  const totalRevenue = otherIncome + digitalSales + cosmofeed + projectReceived;
+  const totalRevenue = otherIncome + digitalSales + cosmofeed + projectReceived + recurringReceived;
 
   const buckets = new Map<string, MonthBucket>();
   const bump = (key: string, field: keyof Omit<MonthBucket, "month" | "label">, value: number) => {
@@ -180,12 +182,7 @@ export async function loadFinance(): Promise<FinanceSnapshot> {
   for (const r of other) bump(monthKey(r.data.date || r.created_at), "other", receivedOf(r));
   for (const r of cosmofeedRows) bump(monthKey(r.data.date || r.created_at), "cosmofeed", num(r.data.amount));
   for (const r of recurring) {
-    const cols = parseCollections(r.data);
-    if (cols.length) {
-      for (const c of cols) bump(monthKey(c.date), "recurring", c.amount);
-    } else if (r.data.active !== false) {
-      bump(monthKey(r.data.start_date || r.data.date || r.created_at), "recurring", num(r.data.amount));
-    }
+    for (const c of parseCollections(r.data)) bump(monthKey(c.date), "recurring", c.amount);
   }
   for (const r of projects) {
     for (const p of projectReceipts(r)) bump(monthKey(p.date || r.data.start_date || r.created_at), "projects", p.amount);

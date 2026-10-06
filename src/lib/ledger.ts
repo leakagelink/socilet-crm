@@ -1,5 +1,5 @@
 import type { RecordRow } from "@/lib/db";
-import { dayOf, inDayRange, ymd } from "@/lib/dateRange";
+import { dayOf, inDayRange } from "@/lib/dateRange";
 import { parseCollections, projectReceipts } from "@/lib/projectPayments";
 import { isLend, paidOnDeal } from "@/lib/lendBorrow";
 
@@ -39,42 +39,6 @@ function receivedOf(r: RecordRow) {
   if (status === "partial") return paid;
   if (paid > 0) return paid;
   return money(r.data.amount);
-}
-
-function parseDay(raw: unknown) {
-  const s = dayOf(raw);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  const d = new Date(`${s}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function bumpDate(d: Date, cadence: string) {
-  const next = new Date(d);
-  if (cadence === "weekly") next.setDate(next.getDate() + 7);
-  else if (cadence === "yearly") next.setFullYear(next.getFullYear() + 1);
-  else next.setMonth(next.getMonth() + 1);
-  return next;
-}
-
-function recurringDates(row: RecordRow, from: string, to: string) {
-  if (row.data.active === false) return [];
-  const start = parseDay(row.data.start_date || row.data.last_paid_date || row.created_at);
-  if (!start) return [];
-  const endRaw = to || ymd(new Date());
-  const end = parseDay(endRaw);
-  if (!end) return [];
-  const cadence = String(row.data.cadence || "monthly");
-  const dates: string[] = [];
-  let cur = start;
-  let i = 0;
-  while (i++ < 400 && ymd(cur) <= endRaw) {
-    const s = ymd(cur);
-    if (inDayRange(s, from, to)) dates.push(s);
-    const next = bumpDate(cur, cadence);
-    if (ymd(next) <= s) break;
-    cur = next;
-  }
-  return dates;
 }
 
 function push(
@@ -150,16 +114,8 @@ export function buildLedger(input: {
   }
   for (const r of input.recurring) {
     const name = String(r.data.name || "Recurring");
-    const cols = parseCollections(r.data);
-    if (cols.length) {
-      for (const c of cols) {
-        push(out, r, "recurring", name, c.amount, c.date, "/recurring-earnings", c.id, c.method);
-      }
-      continue;
-    }
-    const amt = money(r.data.amount);
-    for (const d of recurringDates(r, from, to)) {
-      push(out, r, "recurring", name, amt, d, "/recurring-earnings", d);
+    for (const c of parseCollections(r.data)) {
+      push(out, r, "recurring", name, c.amount, c.date, "/recurring-earnings", c.id, c.method);
     }
   }
   for (const r of input.digital) {

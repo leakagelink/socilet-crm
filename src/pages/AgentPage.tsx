@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
+  ArrowLeft,
   ArrowUp,
   Copy,
   Download,
   FileText,
   Image as ImageIcon,
   KeyRound,
+  LayoutDashboard,
   Maximize2,
   MessageSquare,
   Mic,
@@ -28,6 +30,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { useAgentImmersive } from "@/lib/agentChrome";
 import { useAuth } from "@/hooks/useAuth";
+import { ROLE_HOME, isStaffRole } from "@/lib/roles";
 import {
   aiStatus,
   confirmAgentAction,
@@ -57,15 +60,17 @@ const STARTERS = [
   { q: "Aaj kis pe focus karun?", h: "Priority" },
   { q: "Kaunse clients risk pe hain?", h: "Clients" },
   { q: "Pending payments batao", h: "Cash" },
+  { q: "Inbox me latest emails summarize karo", h: "Inbox" },
   { q: "Client ko follow-up call script do", h: "Call" },
   { q: "Quote draft banao confirm ke sath", h: "Quote" },
   { q: "Client ko email draft karo", h: "Email" },
   { q: "Ads pe kahan spend badhaun, ROAS ke hisaab se?", h: "Ads" },
   { q: "GST e-invoice latest rules research karo, sources ke sath", h: "Research" },
-  { q: "Client proposal ka PDF banao", h: "PDF" },
 ];
 
 const TOOL_HINTS = [
+  "Live inbox / sent",
+  "Full CRM search",
   "Web research",
   "Ads ROAS",
   "Daily brief",
@@ -227,6 +232,8 @@ function exportMarkdown(title: string, turns: ChatTurn[]) {
 export function AgentPage() {
   const qc = useQueryClient();
   const { session } = useAuth();
+  const navigate = useNavigate();
+  const home = session && isStaffRole(session.role) ? ROLE_HOME[session.role] : "/";
   const { immersive, full, mobile, setImmersive } = useAgentImmersive();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -281,6 +288,14 @@ export function AgentPage() {
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [turns]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") navigate(home);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [home, navigate]);
 
   const makeSession = useMutation({
     mutationFn: createAgentSession,
@@ -618,7 +633,15 @@ export function AgentPage() {
       )}
     >
       <header className="flex shrink-0 items-center gap-1.5 border-b border-gold/15 bg-white/70 px-2 py-2 pt-[max(0.5rem,var(--sat))] backdrop-blur-md sm:gap-2 sm:px-4">
-        <BrandLogo className="h-8 w-auto max-w-[7.5rem] sm:h-9 sm:max-w-[9rem]" />
+        <Link
+          to={home}
+          aria-label="Back to CRM"
+          className="flex shrink-0 items-center gap-1 rounded-xl bg-gold/10 px-2 py-2 text-sm font-semibold text-gold hover:bg-gold/20"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          CRM
+        </Link>
+        <BrandLogo className="hidden h-8 w-auto max-w-[7.5rem] sm:block sm:h-9 sm:max-w-[9rem]" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium sm:text-base">{active?.title || "Socilet OS"}</div>
           <div className="truncate text-[11px] text-paper/40">
@@ -642,7 +665,7 @@ export function AgentPage() {
               /* ignore */
             }
           }}
-          className="max-w-[9.5rem] shrink-0 truncate rounded-xl border border-gold/25 bg-white px-2 py-1.5 text-[11px] outline-none sm:max-w-[14rem] sm:text-xs"
+          className="hidden max-w-[9.5rem] shrink-0 truncate rounded-xl border border-gold/25 bg-white px-2 py-1.5 text-[11px] outline-none sm:block sm:max-w-[14rem] sm:text-xs"
         >
           {(catalog.data?.data?.length
             ? catalog.data.data
@@ -672,11 +695,6 @@ export function AgentPage() {
         {session?.role === "admin" ? (
           <Link to="/ai-keys" className="rounded-xl p-2 text-paper/50 hover:bg-gold/10 hover:text-gold" aria-label="AI keys">
             <KeyRound className="h-4 w-4" />
-          </Link>
-        ) : null}
-        {immersive ? (
-          <Link to="/" className="rounded-xl px-2 py-2 text-xs font-medium text-paper/50 hover:bg-gold/10 hover:text-gold">
-            CRM
           </Link>
         ) : null}
       </header>
@@ -912,7 +930,7 @@ export function AgentPage() {
       </div>
 
       {mobile ? (
-        <nav className="grid shrink-0 grid-cols-3 border-t border-gold/20 bg-white/95 pb-[var(--sab)]">
+        <nav className="grid shrink-0 grid-cols-4 border-t border-gold/20 bg-white/95 pb-[var(--sab)]">
           {(
             [
               ["chats", "Chats", MessageSquare],
@@ -933,6 +951,13 @@ export function AgentPage() {
               {label}
             </button>
           ))}
+          <Link
+            to={home}
+            className="flex min-h-12 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-gold"
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            CRM
+          </Link>
         </nav>
       ) : null}
     </div>

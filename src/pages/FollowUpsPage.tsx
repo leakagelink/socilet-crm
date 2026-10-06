@@ -17,8 +17,8 @@ export function FollowUpsPage() {
 
   useEffect(() => {
     if (!auto || !q.data?.length) return;
-    void sendOverdueNudges(q.data).then((r) => {
-      if (r.sent) setNudgeMsg(`Auto email sent for ${r.sent} overdue item${r.sent === 1 ? "" : "s"}.`);
+    void sendOverdueNudges(q.data, false).then((r) => {
+      if (r.sent) setNudgeMsg(`Auto email sent to ${r.sent} client${r.sent === 1 ? "" : "s"}.`);
     });
   }, [auto, q.data]);
 
@@ -27,7 +27,7 @@ export function FollowUpsPage() {
       <PageHeader
         kicker="Today"
         title="Follow-ups"
-        description="Pending project money, overdue invoices, due tasks — WhatsApp or email from here."
+        description="Pending money, overdue invoices, due in next 3 days — Socilet mailbox se auto mail (ek client, ek din, ek mail)."
       />
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -48,18 +48,18 @@ export function FollowUpsPage() {
           onClick={async () => {
             setBusy(true);
             try {
-              const r = await sendOverdueNudges(q.data ?? []);
+              const r = await sendOverdueNudges(q.data ?? [], true);
               setNudgeMsg(
                 r.sent
-                  ? `Emailed ${r.sent}. ${r.skipped ? `${r.skipped} skipped.` : ""}`
-                  : r.errors[0] || "Nothing to email (need overdue + client email, once a day).",
+                  ? `Emailed ${r.sent} client${r.sent === 1 ? "" : "s"}.`
+                  : r.errors[0] || "Already emailed today, mailbox missing, or no due/overdue with client email.",
               );
             } finally {
               setBusy(false);
             }
           }}
         >
-          {busy ? "Sending…" : "Email overdue now"}
+          {busy ? "Sending…" : "Email due now"}
         </Button>
       </div>
       {nudgeMsg ? <p className="text-sm text-mint">{nudgeMsg}</p> : null}
@@ -94,8 +94,8 @@ export function FollowUpsPage() {
                   variant="outline"
                   size="sm"
                   onClick={async () => {
-                    const r = await sendOverdueNudges([{ ...item, tone: "overdue" }]);
-                    setNudgeMsg(r.sent ? `Emailed ${item.email}` : r.errors[0] || "Already emailed today or send failed.");
+                    const r = await sendOverdueNudges(q.data ?? [], true);
+                    setNudgeMsg(r.sent ? `Emailed ${r.sent} client${r.sent === 1 ? "" : "s"} (incl. ${item.email}).` : r.errors[0] || "Already emailed today or send failed.");
                   }}
                 >
                   Email

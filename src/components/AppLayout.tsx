@@ -40,10 +40,11 @@ import {
   ChevronRight,
   Calculator,
   Megaphone,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { OverlayPortal } from "@/components/ui/overlay-portal";
 import { MODULES } from "@/lib/modules";
 import { useAuth } from "@/hooks/useAuth";
@@ -51,6 +52,8 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { restoreMailboxesToServer } from "@/lib/mailboxStore";
 import { scheduleMorningBrief } from "@/lib/alerts";
+import { pingPaymentNudges } from "@/lib/nudge";
+import { settleAutomaticRecurring } from "@/lib/recurring";
 import { countUnseenMail } from "@/lib/unreadMail";
 import { cn } from "@/lib/utils";
 import { canAccess, type RoleName } from "@/lib/roles";
@@ -62,6 +65,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/": LayoutDashboard,
   "/agent": Sparkles,
   "/ai-keys": KeyRound,
+  "/llm-analytics": Bot,
   "/projects": FolderKanban,
   "/tasks": CheckSquare,
   "/quotations": FileText,
@@ -100,7 +104,7 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 const groups = [
-  { name: "AI", paths: ["/agent", "/ai-keys"] },
+  { name: "AI", paths: ["/agent", "/ai-keys", "/llm-analytics"] },
   { name: "Work", paths: ["/", "/follow-ups", "/clients", "/projects", "/project-addons", "/tasks", "/quotations", "/workspaces", "/meetings", "/ai-analyzer"] },
   {
     name: "Finance",
@@ -134,6 +138,7 @@ const titles: Record<string, string> = {
   "/": "Dashboard",
   "/agent": "AI Agent",
   "/ai-keys": "AI keys",
+  "/llm-analytics": "LLM analytics",
   "/account": "Account",
   "/email-setup": "Email setup",
   "/follow-ups": "Follow-ups",
@@ -368,6 +373,7 @@ export function AppLayout() {
   const { session, signOut } = useAuth();
   const navigate = useNavigate();
   const loc = useLocation();
+  const qc = useQueryClient();
   const { immersive } = useAgentImmersive();
   const agentFull = loc.pathname === "/agent" && immersive;
   const mailFull = loc.pathname === "/emails";
@@ -376,10 +382,17 @@ export function AppLayout() {
   useEffect(() => {
     void restoreMailboxesToServer();
     void scheduleMorningBrief();
+    void pingPaymentNudges();
+    void settleAutomaticRecurring().then((n) => {
+      if (!n) return;
+      void qc.invalidateQueries({ queryKey: ["finance"] });
+      void qc.invalidateQueries({ queryKey: ["module", "recurring_earnings"] });
+      void qc.invalidateQueries({ queryKey: ["follow-ups"] });
+    });
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       void Notification.requestPermission();
     }
-  }, []);
+  }, [qc]);
   return (
     <div
       className={cn(

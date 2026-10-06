@@ -151,31 +151,42 @@ export function crmDirectoryLite(records, n = 36) {
   const names = (m, k) =>
     records
       .filter((r) => r.module === m)
-      .map((r) => str(r.data?.name || r.data?.title || r.data?.invoice_no || r.data?.quote_no))
+      .map((r) => str(r.data?.name || r.data?.title || r.data?.invoice_no || r.data?.quote_no || r.data?.subject))
       .filter(Boolean)
       .slice(0, k);
   return {
-    lookup: "Use crm_search / client_intelligence / project_health for details. Do not invent names missing here.",
+    lookup: "Use crm_search for any module. Live inbox/sent is search_mail, not this list.",
     clients: names("clients", n),
     projects: names("projects", n),
     invoices: names("invoices", 16),
+    quotations: names("quotations", 16),
+    tasks: names("tasks", 16),
+    meetings: names("meetings", 12),
+    spends: names("spends", 12),
+    lend_borrow: names("lend_borrow", 12),
+    reminders: names("reminders", 12),
+    emails_logged: names("emails", 12),
     campaigns: names("ad_campaigns", 16),
+    leads: names("ad_leads", 12),
   };
 }
 
-export function snapshotLite(snap) {
+export function snapshotLite(snap, n = 8) {
   return {
     counts: snap.counts,
     cash: snap.cash,
-    attention: (snap.attention || []).slice(0, 8),
-    ignore: (snap.do_not_spend_time_on || []).slice(0, 4),
+    attention: (snap.attention || []).slice(0, n).map((a) => ({
+      title: a.title,
+      href: a.href,
+      why: str(a.why).slice(0, 80),
+    })),
   };
 }
 
-export function slimMemory(memory) {
+export function slimMemory(memory, each = 6, chars = 160) {
   const clip = (arr) =>
-    (Array.isArray(arr) ? arr : []).slice(-6).map((x) => ({
-      text: str(x?.text).slice(0, 160),
+    (Array.isArray(arr) ? arr : []).slice(-each).map((x) => ({
+      text: str(x?.text).slice(0, chars),
     }));
   return {
     user: clip(memory?.user),
@@ -184,40 +195,94 @@ export function slimMemory(memory) {
   };
 }
 
-function hay(row) {
-  const d = row.data || {};
-  return [
-    row.module,
-    d.name,
-    d.title,
-    d.client,
-    d.company,
-    d.email,
-    d.phone,
-    d.status,
-    d.notes,
-    d.item,
-    d.invoice_no,
-    d.quote_no,
-    d.assignee,
-    d.project_name,
-    d.campaign,
-    d.platform,
-    d.message,
-    d.subject,
-  ]
-    .map(str)
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+const QUERY_STOP = new Set([
+  "kya",
+  "hai",
+  "he",
+  "the",
+  "about",
+  "me",
+  "mera",
+  "meri",
+  "ka",
+  "ki",
+  "ke",
+  "ko",
+  "se",
+  "wala",
+  "wali",
+  "please",
+  "batao",
+  "bata",
+  "dikhao",
+  "and",
+  "from",
+  "this",
+  "that",
+  "with",
+  "for",
+]);
+
+export function crmWorkingSet(records, { query, history, snap, limit = 5 } = {}) {
+  const blobs = [str(query), ...(Array.isArray(history) ? history.slice(-6) : []).map((m) => str(m.content))];
+  const tokens = [];
+  const seenTok = new Set();
+  for (const blob of blobs) {
+    for (const p of blob.toLowerCase().split(/\s+/)) {
+      const w = p.replace(/[^\p{L}\p{N}@._-]/gu, "");
+      if (w.length < 3 || QUERY_STOP.has(w) || seenTok.has(w)) continue;
+      seenTok.add(w);
+      tokens.push(w);
+      if (tokens.length >= 8) break;
+    }
+    if (tokens.length >= 8) break;
+  }
+  const seen = new Set();
+  const out = [];
+  const push = (row) => {
+    if (!row?.id || seen.has(row.id)) return;
+    seen.add(row.id);
+    out.push({ id: row.id, module: row.module, label: row.label, href: row.href });
+  };
+  for (const tok of tokens) {
+    for (const row of searchCrm(records, tok, 2)) {
+      push(row);
+      if (out.length >= limit) return out;
+    }
+  }
+  for (const a of snap?.attention || []) {
+    if (out.length >= limit) break;
+    if (a.href) out.push({ label: a.title, href: a.href, why: str(a.why).slice(0, 60) });
+  }
+  return out.slice(0, limit);
 }
 
-export function searchCrm(records, query, limit = 18) {
+function hay(row) {
+  const d = row.data || {};
+  const bits = [row.module, row.id];
+  for (const [k, v] of Object.entries(d)) {
+    if (SENSITIVE_KEYS.test(k)) continue;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") bits.push(String(v));
+    else if (Array.isArray(v)) {
+      for (const item of v.slice(0, 12)) {
+        if (typeof item === "string" || typeof item === "number") bits.push(String(item));
+        else if (item && typeof item === "object") {
+          bits.push(str(item.name || item.title || item.email || item.note || item.amount));
+        }
+      }
+    }
+  }
+  return bits.map(str).filter(Boolean).join(" ").toLowerCase();
+}
+
+export function searchCrm(records, query, limit = 18, module) {
   const q = str(query).toLowerCase();
   if (!q) return [];
+  const want = str(module).toLowerCase();
+  const pool = want ? records.filter((r) => str(r.module).toLowerCase() === want) : records;
   const parts = q.split(/\s+/).filter(Boolean);
   const scored = [];
-  for (const row of records) {
+  for (const row of pool) {
     const h = hay(row);
     let score = 0;
     for (const p of parts) {
@@ -238,6 +303,15 @@ function matchClient(row, client) {
   if (id && (str(d.client_id) === id || row.id === id)) return true;
   if (name && str(d.client).toLowerCase() === name) return true;
   if (name && str(d.name).toLowerCase() === name) return true;
+  const email = str(client.data?.email).toLowerCase();
+  if (
+    email &&
+    (str(d.email).toLowerCase() === email ||
+      str(d.client_email).toLowerCase() === email ||
+      str(d.to_addr).toLowerCase().includes(email) ||
+      str(d.from_addr).toLowerCase().includes(email))
+  )
+    return true;
   return false;
 }
 

@@ -2,7 +2,7 @@ import { json, readBody } from "./http-util.mjs";
 import { corsAndOptions, guardOrigin, readJson, rateLimit, clientIp } from "./security.mjs";
 import { requireApiUser } from "./auth-api.mjs";
 import { loadCrmState } from "./crm-api.mjs";
-import { buildDailySnapshot, clipJson, crmDirectoryLite, snapshotLite, slimMemory, visibleRecords } from "./ai-context.mjs";
+import { buildDailySnapshot, clipJson, crmWorkingSet, snapshotLite, slimMemory, visibleRecords } from "./ai-context.mjs";
 import { confirmPending, ensureAi, executeTool, selectTools } from "./ai-tools.mjs";
 import {
   appendTurn,
@@ -11,6 +11,7 @@ import {
   getSession,
   listSessions,
   otherSessionIndex,
+  packHistory,
   patchSession,
   sessionHistory,
 } from "./ai-sessions.mjs";
@@ -32,14 +33,14 @@ import { patchResearchKeys, researchPublic } from "./ai-research.mjs";
 import { companyPackSync } from "./ai-company.mjs";
 
 const SYSTEM = `You are Socilet OS for this CRM (founder ops). Not a yes-man chatbot.
-Never invent clients, amounts, dates, products, or other chats. Missing → say unknown. Never dump the DB or secrets.
-CRM facts only from CRM_CONTEXT, tools, or memory. Brand only from COMPANY_PACK if present.
-Short replies: recommendation, 2–4 evidence points, one next action. Link records as [Name](/path).
-Client → client_intelligence. Project → project_health. Search → crm_search. Files → generate_document/image. Email/quote/invoice → draft_* then wait for UI confirm.
+Never invent clients, amounts, dates, products, emails, or other chats. Missing → say unknown. Never dump secrets.
+CRM rows: CRM_CONTEXT working set + crm_search / get_record. Named person/project/invoice → crm_search. Live mailbox is NOT in context — search_mail then read_mail. Logged emails module is send log only.
+THREAD_SO_FAR is compressed older chat, not live CRM. Keep answers short unless asked. Brand only from COMPANY_PACK. Link as [Name](/path).
+Client → client_intelligence. Project → project_health. Files → generate_document/image. Compose mail → draft_email then UI confirm.
 Ads ROAS → ads_performance; do not scale ROAS below 1. Web/latest/legal → web_research with [title](url) cites.
 Hinglish OK.`;
 
-const CORE_TOOLS = ["daily_brief", "crm_search", "get_record"];
+const CORE_TOOLS = ["daily_brief", "crm_search", "get_record", "search_mail", "read_mail"];
 const INTEL_TOOLS = ["client_intelligence", "project_health"];
 const WRITE_TOOLS = ["create_task", "update_task", "complete_task", "create_reminder", "add_client_note", "update_project", "remember"];
 const DOC_TOOLS = ["generate_document", "generate_image"];
@@ -47,6 +48,8 @@ const MAIL_TOOLS = ["draft_email", "draft_invoice", "draft_quotation"];
 const MEET_TOOLS = ["log_meeting", "followup_script"];
 const WEB_TOOLS = ["web_research", "company_pack"];
 const ADS_TOOLS = ["ads_performance", "log_ad_spend", "capture_ad_lead", "convert_ad_lead", "winning_ad_quote"];
+
+const LOOKUP_TOOLS = ["daily_brief", "crm_search", "get_record", "search_mail", "read_mail"];
 
 function tokenBudget(text, attachments) {
   const t = String(text || "").toLowerCase();
@@ -60,41 +63,122 @@ function tokenBudget(text, attachments) {
   const research = /\b(research|competitor|market|news|latest|gst|legal|visa|web|socilet\.com|socilet\.in)\b/.test(t);
   const filesWant = files || /\b(pdf|docx?|image|poster|generate|report|proposal|csv)\b/.test(t);
   const ads = /\b(ads?|roas|campaign|meta|google ads)\b/.test(t);
-  const mail = /\b(email|invoice|quotation|quote|draft)\b/.test(t);
+  const mailRead = /\b(e-?mails?|inbox|mailbox|mails?|sent mail|resend)\b/.test(t) || /मेल|ईमेल|इनबॉक्स/.test(t);
+  const mailWrite = /\b(draft|compose|bhejo|send (the )?(mail|email)|likh(o|na)?)\b/.test(t);
+  const docs = /\b(invoice|quotation|quote)\b/.test(t) && /\b(draft|banao|create|bhejo|send)\b/.test(t);
   const meet = /\b(meeting|follow.?up|script|call script)\b/.test(t);
-  const crm =
-    /\b(client|project|task|invoice|quote|payment|due|overdue|lead|reminder|kal|today|aaj|brief|priority|kitna|status|balance)\b/.test(t) ||
-    t.length > 140;
+  const write =
+    mailWrite ||
+    filesWant ||
+    docs ||
+    /\b(banao|create|update|complete|yaad|remember|log |add note|generate)\b/.test(t);
+  const crmFact =
+    mailRead ||
+    /\b(kitna|status|kahan|konsa|kaunse?|pending|due|overdue|client|project|task|invoice|payment|balance|lead|aaj|kal|brief|priority|inbox)\b/.test(
+      t,
+    );
   const hard = research || filesWant || /\b(strategy|why|conflict|health|focus|kya karun)\b/.test(t);
+  const lookup = !files && !hard && !write && !ads && !meet && t.length < 240 && crmFact;
 
   if (light) {
-    return { mode: "light", hard: false, tools: [], history: 4, maxTokens: 280, loops: 1, context: false, brand: false, resultClip: 2000 };
+    return {
+      mode: "light",
+      hard: false,
+      tools: [],
+      history: 2,
+      histClip: 280,
+      maxTokens: 220,
+      loops: 1,
+      context: false,
+      brand: false,
+      resultClip: 1200,
+      ctxClip: 0,
+    };
+  }
+
+  if (lookup) {
+    return {
+      mode: "lookup",
+      hard: false,
+      tools: LOOKUP_TOOLS,
+      history: 4,
+      histClip: 400,
+      maxTokens: 420,
+      loops: 2,
+      context: true,
+      brand: false,
+      resultClip: 1800,
+      ctxClip: 1600,
+    };
   }
 
   const tools = [...CORE_TOOLS];
-  if (crm || hard || ads || mail || meet) tools.push(...INTEL_TOOLS, ...WRITE_TOOLS);
+  if (hard || ads || mailWrite || meet || docs || write) tools.push(...INTEL_TOOLS, ...WRITE_TOOLS);
   if (filesWant) tools.push(...DOC_TOOLS);
-  if (mail) tools.push(...MAIL_TOOLS);
+  if (mailWrite || docs) tools.push(...MAIL_TOOLS);
   if (meet) tools.push(...MEET_TOOLS);
   if (research) tools.push(...WEB_TOOLS);
   if (ads) tools.push(...ADS_TOOLS);
-  if (hard) tools.push(...DOC_TOOLS, ...WEB_TOOLS);
+  if (hard) tools.push(...DOC_TOOLS, ...WEB_TOOLS, ...INTEL_TOOLS, ...WRITE_TOOLS);
 
   if (hard) {
-    return { mode: "hard", hard: true, tools: [...new Set(tools)], history: 12, maxTokens: 1100, loops: 4, context: true, brand: research, resultClip: 4000 };
+    return {
+      mode: "hard",
+      hard: true,
+      tools: [...new Set(tools)],
+      history: 6,
+      histClip: 700,
+      maxTokens: 1100,
+      loops: 4,
+      context: true,
+      brand: research,
+      resultClip: 4000,
+      ctxClip: 2800,
+    };
   }
-  if (mail || meet || ads || filesWant) {
-    return { mode: "work", hard: false, tools: [...new Set(tools)], history: 10, maxTokens: 800, loops: 4, context: true, brand: false, resultClip: 3200 };
+  if (mailWrite || meet || ads || filesWant || docs || write) {
+    return {
+      mode: "work",
+      hard: false,
+      tools: [...new Set(tools)],
+      history: 6,
+      histClip: 500,
+      maxTokens: 800,
+      loops: 3,
+      context: true,
+      brand: false,
+      resultClip: 3200,
+      ctxClip: 2200,
+    };
   }
-  if (crm) {
-    return { mode: "crm", hard: false, tools: [...new Set([...CORE_TOOLS, ...INTEL_TOOLS, ...WRITE_TOOLS])], history: 8, maxTokens: 700, loops: 3, context: true, brand: false, resultClip: 2800 };
+  if (crmFact || t.length > 80) {
+    return {
+      mode: "crm",
+      hard: false,
+      tools: [...new Set([...CORE_TOOLS, ...INTEL_TOOLS, ...WRITE_TOOLS])],
+      history: 4,
+      histClip: 450,
+      maxTokens: 600,
+      loops: 3,
+      context: true,
+      brand: false,
+      resultClip: 2400,
+      ctxClip: 2000,
+    };
   }
-  return { mode: "ask", hard: false, tools: CORE_TOOLS, history: 6, maxTokens: 400, loops: 2, context: true, brand: false, resultClip: 2200 };
-}
-
-function clipTurn(content, max = 1200) {
-  if (typeof content === "string") return content.length <= max ? content : `${content.slice(0, max)}…`;
-  return content;
+  return {
+    mode: "ask",
+    hard: false,
+    tools: LOOKUP_TOOLS,
+    history: 4,
+    histClip: 400,
+    maxTokens: 360,
+    loops: 2,
+    context: true,
+    brand: false,
+    resultClip: 1800,
+    ctxClip: 1600,
+  };
 }
 
 function pathname(req) {
@@ -428,26 +512,26 @@ export async function handleAiRequest(req, res, env = process.env) {
         });
       }
       if (budget.context) {
+        const lite = budget.mode === "lookup" || budget.mode === "ask";
         grounded.push({
           role: "system",
           content: `CRM_CONTEXT (facts only; use tools for detail):\n${clipJson(
             {
               role: user.role,
-              directory: crmDirectoryLite(records),
-              other_chats: otherSessionIndex(user.id, sessionId)
-                .slice(0, 5)
-                .map((s) => s.title),
-              snapshot: snapshotLite(snap),
-              memory: slimMemory(ai.memory),
+              live_mail: "Inbox/sent: search_mail then read_mail. Do not guess.",
+              working_set: crmWorkingSet(records, { query: text, history, snap, limit: lite ? 4 : 6 }),
+              snapshot: snapshotLite(snap, lite ? 4 : 6),
+              memory: slimMemory(ai.memory, lite ? 3 : 5, lite ? 100 : 140),
+              ...(budget.mode === "hard"
+                ? { other_chats: otherSessionIndex(user.id, sessionId).slice(0, 3).map((s) => s.title) }
+                : {}),
             },
-            4500,
+            budget.ctxClip || 2000,
           )}`,
         });
       }
-      grounded.push(
-        ...history.slice(-budget.history).map((m) => ({ role: m.role, content: clipTurn(m.content) })),
-        packUserMessage(text, attachments),
-      );
+      const packed = packHistory(history, budget.history, budget.histClip || 500);
+      grounded.push(...(budget.context ? packed : packed.filter((m) => m.role !== "system")), packUserMessage(text, attachments));
 
       if (!hasAnyProvider(env)) {
         const files = [];
